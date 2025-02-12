@@ -85,23 +85,31 @@ async function handleBadWords(msg) {
   if (badWords.some(word => text.includes(word))) {
     bot.deleteMessage(chatId, msg.message_id);
 
-    if (!data.warnings[userId]) {
-      data.warnings[userId] = 1;
+    if (!data.warnings[userId] || data.warnings[userId] < 3) {
+      // Only add warnings if the user has less than 3 warnings
+      if (!data.warnings[userId]) {
+        data.warnings[userId] = 1;
+      } else {
+        data.warnings[userId]++;
+      }
+
+      saveData();
+
+      bot.sendMessage(
+        chatId,
+        `⚠️ ${msg.from.first_name}، پیام شما حذف شد! \n📌 اخطار ${data.warnings[userId]}/3`
+      );
+
+      if (data.warnings[userId] >= 3) {
+        await bot.restrictChatMember(chatId, userId, { can_send_messages: false });
+        bot.sendMessage(chatId, `🔇 ${msg.from.first_name} به دلیل 3 اخطار، بی‌صدا شد!`);
+      }
     } else {
-      // Cap warnings at 3
-      data.warnings[userId] = Math.min(data.warnings[userId] + 1, 3);
-    }
-
-    saveData();
-
-    bot.sendMessage(
-      chatId,
-      `⚠️ ${msg.from.first_name}، پیام شما حذف شد! \n📌 اخطار ${data.warnings[userId]}/3`
-    );
-
-    if (data.warnings[userId] >= 3) {
-      await bot.restrictChatMember(chatId, userId, { can_send_messages: false });
-      bot.sendMessage(chatId, `🔇 ${msg.from.first_name} به دلیل 3 اخطار، بی‌صدا شد!`);
+      // Notify that the user already has 3 warnings
+      bot.sendMessage(
+        chatId,
+        `❌ ${msg.from.first_name} قبلاً 3 اخطار دریافت کرده و بی‌صدا شده است!`
+      );
     }
   }
 }
@@ -159,23 +167,31 @@ async function handleAdminActions(msg) {
 function handleWarning(chatId, targetId, msg) {
   if (!targetId) return bot.sendMessage(chatId, "❌ لطفا به یک پیام پاسخ دهید.");
 
-  if (!data.warnings[targetId]) {
-    data.warnings[targetId] = 1;
+  if (!data.warnings[targetId] || data.warnings[targetId] < 3) {
+    // Only add warnings if the user has less than 3 warnings
+    if (!data.warnings[targetId]) {
+      data.warnings[targetId] = 1;
+    } else {
+      data.warnings[targetId]++;
+    }
+
+    saveData();
+
+    bot.sendMessage(
+      chatId,
+      `⚠️ ${msg.reply_to_message.from.first_name} توسط ${msg.from.first_name} اخطار گرفت! \n📌 اخطار ${data.warnings[targetId]}/3`
+    );
+
+    if (data.warnings[targetId] >= 3) {
+      bot.restrictChatMember(chatId, targetId, { can_send_messages: false });
+      bot.sendMessage(chatId, `🔇 ${msg.reply_to_message.from.first_name} به دلیل 3 اخطار، بی‌صدا شد!`);
+    }
   } else {
-    // Cap warnings at 3
-    data.warnings[targetId] = Math.min(data.warnings[targetId] + 1, 3);
-  }
-
-  saveData();
-
-  bot.sendMessage(
-    chatId,
-    `⚠️ ${msg.reply_to_message.from.first_name} توسط ${msg.from.first_name} اخطار گرفت! \n📌 اخطار ${data.warnings[targetId]}/3`
-  );
-
-  if (data.warnings[targetId] >= 3) {
-    bot.restrictChatMember(chatId, targetId, { can_send_messages: false });
-    bot.sendMessage(chatId, `🔇 ${msg.reply_to_message.from.first_name} به دلیل 3 اخطار، بی‌صدا شد!`);
+    // Notify that the user already has 3 warnings
+    bot.sendMessage(
+      chatId,
+      `❌ ${msg.reply_to_message.from.first_name} قبلاً 3 اخطار دریافت کرده و بی‌صدا شده است!`
+    );
   }
 }
 
@@ -242,21 +258,19 @@ function handleRemoveWarning(chatId, targetId, msg) {
   if (data.warnings[targetId] <= 0) {
     delete data.warnings[targetId];
 
-    // Automatically unmute if user was muted due to warnings
-    bot.restrictChatMember(chatId, targetId, {
+    // Automatically unmute if the user was muted due to reaching 3 warnings
+    if (bot.restrictChatMember(chatId, targetId, {
       can_send_messages: true,
       can_send_media_messages: true,
       can_send_polls: true,
       can_send_other_messages: true,
       can_add_web_page_previews: true
-    }).then(() => {
+    })) {
       bot.sendMessage(
         chatId,
         `🎉 ${msg.reply_to_message.from.first_name} از سکوت خارج شد و مجدد قادر به صحبت کردن است!`
       );
-    }).catch((error) => {
-      console.error("Error auto-unmuting user:", error);
-    });
+    }
   }
 
   saveData();
