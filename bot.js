@@ -203,7 +203,7 @@ bot.on("message", async (msg) => {
       ⚠️ این پیام به تمامی ادمین‌ها و صاحب گروه ارسال شد.
     `;
 
-    // Forward the report to all admins
+    // Forward the report to all admins in their DMs
     admins.forEach((admin) => {
       if (admin.user.id !== userId) {
         bot.sendMessage(admin.user.id, reportMessage);
