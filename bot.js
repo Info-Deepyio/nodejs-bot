@@ -1,27 +1,46 @@
 const TelegramBot = require('node-telegram-bot-api');
-require('dotenv').config(); // If you're using .env for token storage
 
-// Replace with your bot token
-const token = process.env.BOT_TOKEN || '7953627451:AAFPvdnqE7GPQbmVlFNys7GvrHBARWuXAWY';
+// Replace 'YOUR_BOT_TOKEN' with your actual bot token
+const token = '7953627451:AAFPvdnqE7GPQbmVlFNys7GvrHBARWuXAWY';
 const bot = new TelegramBot(token, { polling: true });
 
 // Channel username to check membership
 const channelUsername = '@MYMINEMC';
 
-// Special start command parameter (e.g., "getFIle1")
-const specialStartParam = 'getfile'; // Change this to your desired parameter
-
-// File name for the special start command
-const fileName = 'pack1.txt'; // Change this to your desired file name
-
 // Function to check if the user is a member of the channel
-async function isUserMember(userId) {
-  try {
-    const chatMember = await bot.getChatMember(channelUsername, userId);
-    return ['creator', 'administrator', 'member'].includes(chatMember.status);
-  } catch (error) {
-    console.error('Error checking membership:', error);
-    return false;
+function isUserMember(chatId, userId) {
+  return new Promise((resolve, reject) => {
+    bot.getChatMember(channelUsername, userId)
+      .then(member => {
+        const status = member.status;
+        resolve(['creator', 'administrator', 'member'].includes(status));
+      })
+      .catch(err => {
+        console.error('Error checking membership:', err);
+        resolve(false); // Assume not a member if there's an error
+      });
+  });
+}
+
+// Function to send the join message with inline keyboards
+function sendJoinMessage(chatId, messageId) {
+  const keyboard = {
+    inline_keyboard: [
+      [{ text: 'لینک چنل 🔗', url: `https://t.me/${channelUsername.slice(1)}` }],
+      [{ text: 'چک کردن عضویت ✅', callback_data: 'check_membership' }]
+    ]
+  };
+
+  if (messageId) {
+    bot.editMessageText('لطفا ابتدا در کانال عضو شوید!', {
+      chat_id: chatId,
+      message_id: messageId,
+      reply_markup: keyboard
+    });
+  } else {
+    bot.sendMessage(chatId, 'برای استفاده از ربات، لطفا در کانال زیر عضو شوید:\n\n@MYMINEMC', {
+      reply_markup: keyboard
+    });
   }
 }
 
@@ -29,77 +48,52 @@ async function isUserMember(userId) {
 bot.onText(/\/start/, async (msg, match) => {
   const chatId = msg.chat.id;
   const userId = msg.from.id;
-  const username = msg.from.username;
+  const username = msg.from.username || 'دوست عزیز';
 
-  // Extract the start parameter if it exists
-  const startParam = match[0].split(' ')[1];
+  // Check if the user is already a member
+  const isMember = await isUserMember(chatId, userId);
 
-  // Check if the user is already a member of the channel
-  const isMember = await isUserMember(userId);
+  if (isMember) {
+    // If the user is a member, greet them
+    const startParam = match && match[0].split(' ')[1]; // Get the start parameter
 
-  if (!isMember && startParam !== specialStartParam) {
-    // User is not a member, prompt them to join
-    const message = '⚠️ لطفاً ابتدا در کانال ما عضو شوید تا از خدمات ربات استفاده کنید! ⚠️';
-
-    const options = {
-      reply_markup: JSON.stringify({
-        inline_keyboard: [
-          [{ text: 'لینک چنل', url: `https://t.me/${channelUsername.slice(1)}` }],
-          [{ text: 'چک کردن عضویت ✅', callback_data: 'check_membership' }]
-        ]
-      })
-    };
-
-    bot.sendMessage(chatId, message, options);
-  } else if (isMember && startParam !== specialStartParam) {
-    // User is a member, proceed with the normal start command
-    bot.sendMessage(chatId, `سلام ${username}! 🌟\n\nخوش آمدید به ربات ما. 😊`);
-  } else if (startParam === specialStartParam) {
-    // Handle the special start command with file sharing
-    handleSpecialStart(chatId, fileName);
+    if (startParam === 'getFile1') {
+      // Send the file if the special start parameter is provided
+      const filePath = './pack1.txt'; // Ensure this file exists in the same directory
+      bot.sendDocument(chatId, filePath, {
+        caption: `فایل مورد نظر برای شما ارسال شد! 🎁`
+      });
+    } else {
+      // Greet the user
+      bot.sendMessage(chatId, `سلام ${username}! 😊\n\nخوش آمدید به ربات ما. امیدواریم از خدمات ما لذت ببرید!`);
+    }
+  } else {
+    // If the user is not a member, send the join message
+    const sentMessage = await bot.sendMessage(chatId, 'برای استفاده از ربات، لطفا در کانال زیر عضو شوید:\n\n@MYMINEMC');
+    sendJoinMessage(chatId, sentMessage.message_id);
   }
 });
 
-// Handle inline button callback
-bot.on('callback_query', async (query) => {
+// Handle inline keyboard callbacks
+bot.on('callback_query', async query => {
   const chatId = query.message.chat.id;
   const messageId = query.message.message_id;
   const userId = query.from.id;
 
   if (query.data === 'check_membership') {
-    const isMember = await isUserMember(userId);
+    const isMember = await isUserMember(chatId, userId);
 
     if (isMember) {
-      // User is now a member, remove the join message
+      // If the user is now a member, delete the join message and re-run the previous command
       bot.deleteMessage(chatId, messageId)
         .then(() => {
-          bot.sendMessage(chatId, `سلام ${query.from.username}! 🌟\n\nخوش آمدید به ربات ما. 😊`);
-        })
-        .catch((err) => {
-          console.error('Error deleting message:', err);
+          bot.sendMessage(chatId, 'عضویت شما تایید شد! 🎉\n\nحالا می‌توانید از ربات استفاده کنید.');
+          bot.sendMessage(chatId, `/start`); // Re-run the start command
         });
     } else {
-      // User is still not a member, notify them
-      bot.editMessageText('❌ لطفاً ابتدا در کانال ما عضو شوید! ❌', {
-        chat_id: chatId,
-        message_id: messageId
-      });
+      // If the user is still not a member, inform them
+      bot.answerCallbackQuery(query.id, 'هنوز عضو کانال نشده‌اید! لطفا ابتدا عضو شوید.');
+      sendJoinMessage(chatId, messageId);
     }
   }
 });
-
-// Handle special start command with file sharing
-function handleSpecialStart(chatId, fileName) {
-  try {
-    // Path to the file in the bot's directory
-    const filePath = `./${fileName}`; // Ensure this file exists in the same directory as the script
-
-    // Send the file to the user
-    bot.sendDocument(chatId, filePath, {
-      caption: '📦 فایل مورد نظر برای شما آماده شد! 📦'
-    });
-  } catch (error) {
-    console.error('Error sending file:', error);
-    bot.sendMessage(chatId, '❌ متاسفانه فایل مورد نظر پیدا نشد. ❌');
-  }
-}
