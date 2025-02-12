@@ -203,14 +203,60 @@ bot.on("message", async (msg) => {
       ⚠️ این پیام به تمامی ادمین‌ها و صاحب گروه ارسال شد.
     `;
 
+    // Send inline keyboard with the report
+    const inlineKeyboard = {
+      inline_keyboard: [
+        [
+          {
+            text: "ارسال اخطار",
+            callback_data: `warning_${reportedUser}_${reportedBy}_${reportedUser}`
+          }
+        ]
+      ]
+    };
+
     // Forward the report to all admins in their DMs
     admins.forEach((admin) => {
       if (admin.user.id !== userId) {
-        bot.sendMessage(admin.user.id, reportMessage);
+        bot.sendMessage(admin.user.id, reportMessage, { reply_markup: inlineKeyboard });
       }
     });
 
     // Acknowledge the report to the user
     bot.sendMessage(chatId, "📩 گزارش شما ارسال شد!");
+  }
+});
+
+// Handle Inline Keyboard Button Press (ارسال اخطار)
+bot.on("callback_query", async (query) => {
+  const chatId = query.message.chat.id;
+  const userId = query.from.id;
+  const data = query.data;
+
+  // Split the callback data to get reported user and reporter
+  const parts = data.split('_');
+  const reportedUser = parts[1];
+  const reportedBy = parts[2];
+
+  if (data.startsWith("warning_")) {
+    // Add a warning to the reporter
+    if (!data.warnings[userId]) {
+      data.warnings[userId] = 1; // First warning for the user
+    } else {
+      data.warnings[userId]++; // Increment warning count
+    }
+    saveData();
+
+    // Send the warning message to the chat
+    bot.sendMessage(chatId, `⚠️ کاربر ${reportedBy} به دلیل ارسال گزارش اخطار گرفت!`);
+
+    // Update the report message with warning status
+    bot.editMessageText(
+      query.message.text + `\n📌 کاربر ${reportedBy} اخطار گرفت و در گپ پیام اخطار ارسال شد. 🚨`,
+      { chat_id: chatId, message_id: query.message.message_id }
+    );
+
+    // Acknowledge the action to the admin
+    bot.answerCallbackQuery(query.id, { text: "اخطار ارسال شد!", show_alert: false });
   }
 });
