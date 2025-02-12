@@ -2,11 +2,11 @@ const TelegramBot = require("node-telegram-bot-api");
 const fs = require("fs");
 
 // Bot Token (Replace with your actual bot token)
-const TOKEN = "7953627451:AAFPvdnqE7GPQbmVlFNys7GvrHBARWuXAWY";
+const TOKEN = "7948201057:AAGdjlJ7XGdObnxlIUpXfXqOXUrCILApxKE";
 const bot = new TelegramBot(TOKEN, { polling: true });
 
 // Group handle
-const ALLOWED_GROUP = "@Roblocksx";
+const ALLOWED_GROUP = "@Deepeyo";
 
 // Load data from JSON file
 const DATA_FILE = "data.json";
@@ -203,88 +203,14 @@ bot.on("message", async (msg) => {
       ⚠️ این پیام به تمامی ادمین‌ها و صاحب گروه ارسال شد.
     `;
 
-    // Send inline keyboard with the report
-    const inlineKeyboard = {
-      inline_keyboard: [
-        [
-          {
-            text: "ارسال اخطار به گزارش‌دهنده",
-            callback_data: `warning_reporter_${userId}_${reportedBy}_${reportedUser}`
-          },
-          {
-            text: "ارسال اخطار به کاربر گزارش شده",
-            callback_data: `warning_reported_${msg.reply_to_message.from.id}_${reportedBy}_${reportedUser}`
-          }
-        ]
-      ]
-    };
-
-    // Forward the report to all admins in their DMs
+    // Forward the report to all admins
     admins.forEach((admin) => {
       if (admin.user.id !== userId) {
-        bot.sendMessage(admin.user.id, reportMessage, { reply_markup: inlineKeyboard });
+        bot.sendMessage(admin.user.id, reportMessage);
       }
     });
 
     // Acknowledge the report to the user
     bot.sendMessage(chatId, "📩 گزارش شما ارسال شد!");
-  }
-});
-
-// Handle Inline Keyboard Button Press (ارسال اخطار)
-bot.on("callback_query", async (query) => {
-  const chatId = query.message.chat.id;
-  const userId = query.from.id;
-  const data = query.data;
-
-  // Split the callback data to get the action and the user
-  const parts = data.split('_');
-  const action = parts[0];
-  const targetUserId = parts[1];
-  const reportedBy = parts[2];
-  const reportedUser = parts[3];
-
-  if (action === "warning_reporter") {
-    // Handle warning for the reporter
-    if (!data.warnings[targetUserId]) {
-      data.warnings[targetUserId] = 1; // First warning for the user
-    } else {
-      data.warnings[targetUserId]++; // Increment warning count
-    }
-    saveData();
-
-    // Send the warning message to the chat
-    bot.sendMessage(chatId, `⚠️ کاربر ${reportedBy} به دلیل ارسال گزارش اخطار گرفت!`);
-
-    // Update the report message with warning status
-    bot.editMessageText(
-      query.message.text + `\n📌 کاربر ${reportedBy} اخطار گرفت و در گپ پیام اخطار ارسال شد. 🚨`,
-      { chat_id: chatId, message_id: query.message.message_id }
-    );
-
-    // Acknowledge the action to the admin
-    bot.answerCallbackQuery(query.id, { text: "اخطار ارسال شد!", show_alert: false });
-  }
-
-  if (action === "warning_reported") {
-    // Handle warning for the reported user
-    if (!data.warnings[targetUserId]) {
-      data.warnings[targetUserId] = 1; // First warning for the user
-    } else {
-      data.warnings[targetUserId]++; // Increment warning count
-    }
-    saveData();
-
-    // Send the warning message to the chat
-    bot.sendMessage(chatId, `⚠️ کاربر ${reportedUser} به دلیل گزارش اخطار گرفت!`);
-
-    // Update the report message with warning status
-    bot.editMessageText(
-      query.message.text + `\n📌 کاربر ${reportedUser} اخطار گرفت و در گپ پیام اخطار ارسال شد. 🚨`,
-      { chat_id: chatId, message_id: query.message.message_id }
-    );
-
-    // Acknowledge the action to the admin
-    bot.answerCallbackQuery(query.id, { text: "اخطار ارسال شد!", show_alert: false });
   }
 });
