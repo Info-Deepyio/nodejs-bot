@@ -88,7 +88,8 @@ async function handleBadWords(msg) {
     if (!data.warnings[userId]) {
       data.warnings[userId] = 1;
     } else {
-      data.warnings[userId]++;
+      // Cap warnings at 3
+      data.warnings[userId] = Math.min(data.warnings[userId] + 1, 3);
     }
 
     saveData();
@@ -161,7 +162,8 @@ function handleWarning(chatId, targetId, msg) {
   if (!data.warnings[targetId]) {
     data.warnings[targetId] = 1;
   } else {
-    data.warnings[targetId]++;
+    // Cap warnings at 3
+    data.warnings[targetId] = Math.min(data.warnings[targetId] + 1, 3);
   }
 
   saveData();
@@ -239,6 +241,22 @@ function handleRemoveWarning(chatId, targetId, msg) {
   data.warnings[targetId]--;
   if (data.warnings[targetId] <= 0) {
     delete data.warnings[targetId];
+
+    // Automatically unmute if user was muted due to warnings
+    bot.restrictChatMember(chatId, targetId, {
+      can_send_messages: true,
+      can_send_media_messages: true,
+      can_send_polls: true,
+      can_send_other_messages: true,
+      can_add_web_page_previews: true
+    }).then(() => {
+      bot.sendMessage(
+        chatId,
+        `🎉 ${msg.reply_to_message.from.first_name} از سکوت خارج شد و مجدد قادر به صحبت کردن است!`
+      );
+    }).catch((error) => {
+      console.error("Error auto-unmuting user:", error);
+    });
   }
 
   saveData();
