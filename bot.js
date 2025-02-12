@@ -2,7 +2,7 @@ const TelegramBot = require("node-telegram-bot-api");
 const fs = require("fs");
 
 // Bot Token (Replace with your actual bot token)
-const TOKEN = "YOUR_TELEGRAM_BOT_TOKEN";
+const TOKEN = "7948201057:AAGdjlJ7XGdObnxlIUpXfXqOXUrCILApxKE";
 const bot = new TelegramBot(TOKEN, { polling: true });
 
 // Group handle
