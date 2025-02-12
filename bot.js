@@ -6,7 +6,7 @@ const TOKEN = "7948201057:AAGdjlJ7XGdObnxlIUpXfXqOXUrCILApxKE";
 const bot = new TelegramBot(TOKEN, { polling: true });
 
 // Group handle
-const ALLOWED_GROUP = "@Deepeyo";
+const ALLOWED_GROUP = "@Roblocksx";
 
 // Load data from JSON file
 const DATA_FILE = "data.json";
@@ -50,7 +50,7 @@ function isAllowedGroup(chat) {
   return chat.type === "supergroup" && chat.username === ALLOWED_GROUP.replace("@", "");
 }
 
-// Handle activation and deactivation
+// Handle activation
 async function handleActivation(msg) {
   const chatId = msg.chat.id;
   const userId = msg.from.id;
@@ -68,15 +68,6 @@ async function handleActivation(msg) {
     data.active = true;
     saveData();
     return bot.sendMessage(chatId, "✅ ربات با موفقیت فعال شد!");
-  }
-
-  if (text === "خاموش" && isOwner) {
-    if (!data.active) {
-      return bot.sendMessage(chatId, "⚠️ ربات قبلا غیرفعال شده است.");
-    }
-    data.active = false;
-    saveData();
-    return bot.sendMessage(chatId, "❌ ربات با موفقیت غیرفعال شد!");
   }
 }
 
@@ -114,7 +105,7 @@ async function handleBadWords(msg) {
   }
 }
 
-// Check if a user is an admin
+// Check if a user is an admin or owner
 async function isAdminUser(chatId, userId) {
   const chatMember = await bot.getChatMember(chatId, userId);
   return chatMember.status === "creator" || chatMember.status === "administrator";
@@ -127,7 +118,7 @@ async function handleAdminActions(msg) {
   const targetId = msg.reply_to_message?.from.id;
   const text = msg.text;
 
-  if (!data.active || !isAllowedGroup(msg.chat) || !targetId) return;
+  if (!data.active || !isAllowedGroup(msg.chat)) return;
 
   const isAdmin = await isAdminUser(chatId, userId);
   if (!isAdmin) return;
@@ -165,6 +156,8 @@ async function handleAdminActions(msg) {
 
 // Handle warnings
 function handleWarning(chatId, targetId, msg) {
+  if (!targetId) return bot.sendMessage(chatId, "❌ لطفا به یک پیام پاسخ دهید.");
+
   if (!data.warnings[targetId]) {
     data.warnings[targetId] = 1;
   } else {
@@ -186,6 +179,8 @@ function handleWarning(chatId, targetId, msg) {
 
 // Handle kicking users
 async function handleKick(chatId, targetId, msg) {
+  if (!targetId) return bot.sendMessage(chatId, "❌ لطفا به یک پیام پاسخ دهید.");
+
   try {
     await bot.kickChatMember(chatId, targetId);
     bot.sendMessage(chatId, `🚫 ${msg.reply_to_message.from.first_name} از گروه اخراج شد!`);
@@ -197,6 +192,8 @@ async function handleKick(chatId, targetId, msg) {
 
 // Handle muting users
 async function handleMute(chatId, targetId, msg) {
+  if (!targetId) return bot.sendMessage(chatId, "❌ لطفا به یک پیام پاسخ دهید.");
+
   try {
     await bot.restrictChatMember(chatId, targetId, {
       can_send_messages: false,
@@ -214,6 +211,8 @@ async function handleMute(chatId, targetId, msg) {
 
 // Handle unmuting users
 async function handleUnmute(chatId, targetId, msg) {
+  if (!targetId) return bot.sendMessage(chatId, "❌ لطفا به یک پیام پاسخ دهید.");
+
   try {
     await bot.restrictChatMember(chatId, targetId, {
       can_send_messages: true,
@@ -231,6 +230,8 @@ async function handleUnmute(chatId, targetId, msg) {
 
 // Handle removing warnings
 function handleRemoveWarning(chatId, targetId, msg) {
+  if (!targetId) return bot.sendMessage(chatId, "❌ لطفا به یک پیام پاسخ دهید.");
+
   if (!data.warnings[targetId]) {
     return bot.sendMessage(chatId, `❌ ${msg.reply_to_message.from.first_name} هیچ اخطاری ندارد!`);
   }
@@ -256,13 +257,12 @@ function handleCommandList(chatId) {
     📜 **لیست دستورات ربات**:
 
     1️⃣ **روشن** - فعال‌سازی ربات توسط صاحب گروه.
-    2️⃣ **خاموش** - غیرفعال‌سازی ربات توسط صاحب گروه.
-    3️⃣ **اخطار** - اخطار دادن به کاربر.
-    4️⃣ **کیک/صیک** - اخراج کاربر از گروه.
-    5️⃣ **سکوت** - بی‌صدا کردن کاربر.
-    6️⃣ **سخنگو** - بازگرداندن صدای کاربر.
-    7️⃣ **حذف اخطار** - حذف یک اخطار از کاربر.
-    8️⃣ **گزارش** - گزارش دادن پیام به ادمین‌ها و صاحب گروه.
+    2️⃣ **اخطار** - اخطار دادن به کاربر.
+    3️⃣ **کیک/صیک** - اخراج کاربر از گروه.
+    4️⃣ **سکوت** - بی‌صدا کردن کاربر.
+    5️⃣ **سخنگو** - بازگرداندن صدای کاربر.
+    6️⃣ **حذف اخطار** - حذف یک اخطار از کاربر.
+    7️⃣ **گزارش** - گزارش دادن پیام به ادمین‌ها و صاحب گروه.
     `
   );
 }
@@ -292,13 +292,11 @@ bot.on("message", async (msg) => {
       let reportSent = false;
 
       for (const admin of admins) {
-        if (admin.user.id !== userId) {
-          try {
-            await bot.sendMessage(admin.user.id, reportMessage);
-            reportSent = true;
-          } catch (error) {
-            console.error(`Failed to send report to admin ${admin.user.id}:`, error);
-          }
+        try {
+          await bot.sendMessage(admin.user.id, reportMessage);
+          reportSent = true;
+        } catch (error) {
+          console.error(`Failed to send report to admin ${admin.user.id}:`, error);
         }
       }
 
@@ -318,5 +316,9 @@ bot.on("message", async (msg) => {
 bot.on("message", async (msg) => {
   handleActivation(msg);
   handleBadWords(msg);
-  handleAdminActions(msg);
+
+  // Allow admins and owners to use commands
+  if (await isAdminUser(msg.chat.id, msg.from.id)) {
+    handleAdminActions(msg);
+  }
 });
