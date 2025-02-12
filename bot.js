@@ -2,7 +2,7 @@ const TelegramBot = require("node-telegram-bot-api");
 const fs = require("fs");
 
 // Bot Token (Replace with your actual bot token)
-const TOKEN = "7948201057:AAGdjlJ7XGdObnxlIUpXfXqOXUrCILApxKE";
+const TOKEN = "YOUR_TELEGRAM_BOT_TOKEN";
 const bot = new TelegramBot(TOKEN, { polling: true });
 
 // Group handle
@@ -67,7 +67,7 @@ async function handleActivation(msg) {
     }
     data.active = true;
     saveData();
-    return bot.sendMessage(chatId, "✅ ربات با موفقیت فعال شد!");
+    return bot.sendMessage(chatId, "✅ ربات با موفقیت فعال شد!\nپیشنهاد و انتقادات @zonercm\nورژن کاستوم + 1.0");
   }
 }
 
@@ -258,7 +258,7 @@ function handleRemoveWarning(chatId, targetId, msg) {
   if (data.warnings[targetId] <= 0) {
     delete data.warnings[targetId];
 
-    // Automatically unmute if the user was muted due to reaching 3 warnings
+    // Automatically unmute if the user was muted due to 3 warnings
     if (bot.restrictChatMember(chatId, targetId, {
       can_send_messages: true,
       can_send_media_messages: true,
@@ -271,6 +271,22 @@ function handleRemoveWarning(chatId, targetId, msg) {
         `🎉 ${msg.reply_to_message.from.first_name} از سکوت خارج شد و مجدد قادر به صحبت کردن است!`
       );
     }
+  } else if (data.warnings[targetId] === 2) {
+    // If the user had exactly 3 warnings before removal, notify and unmute
+    bot.restrictChatMember(chatId, targetId, {
+      can_send_messages: true,
+      can_send_media_messages: true,
+      can_send_polls: true,
+      can_send_other_messages: true,
+      can_add_web_page_previews: true
+    }).then(() => {
+      bot.sendMessage(
+        chatId,
+        `🎉 ${msg.reply_to_message.from.first_name} از سکوت خارج شد و مجدد قادر به صحبت کردن است!`
+      );
+    }).catch((error) => {
+      console.error("Error auto-unmuting user:", error);
+    });
   }
 
   saveData();
