@@ -1,14 +1,14 @@
 const TelegramBot = require("node-telegram-bot-api");
 const fs = require("fs");
 
-// --- Bot Token (Replace with your bot token) ---
+// Bot Token (Replace with your actual bot token)
 const TOKEN = "7953627451:AAFPvdnqE7GPQbmVlFNys7GvrHBARWuXAWY";
 const bot = new TelegramBot(TOKEN, { polling: true });
 
-// --- Group handle ---
+// Group handle
 const ALLOWED_GROUP = "@Roblocksx";
 
-// --- Load Data from JSON ---
+// Load data from JSON file
 const DATA_FILE = "data.json";
 
 // Initialize data structure if `data.json` doesn't exist
@@ -29,18 +29,18 @@ if (fs.existsSync(DATA_FILE)) {
   saveData();
 }
 
-// --- Save Data Function ---
+// Save data to `data.json`
 function saveData() {
   fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2), "utf8");
 }
 
-// --- Offensive Words List ---
+// Offensive words list
 const badWords = [
   "کیر", "کص", "کون", "کونده", "کصده", "جند", "کصمادر", "اوبی", "اوبنه ای",
   "تاقال", "تاقار", "حروم", "جاکش", "حرومی", "پدرسگ", "مادرجنده", "تخم سگ"
 ];
 
-// --- Bot Activation by Owner ---
+// Bot Activation by Owner
 bot.on("message", async (msg) => {
   const chatId = msg.chat.id;
   const userId = msg.from.id;
@@ -50,7 +50,7 @@ bot.on("message", async (msg) => {
   // Ensure bot is working only in the specified group
   if (isGroup && msg.chat.username !== ALLOWED_GROUP.replace("@", "")) return;
 
-  // Check if user is the owner
+  // Check if the user is the owner or an admin
   const chatMember = await bot.getChatMember(chatId, userId);
   const isOwner = chatMember.status === "creator";
   const isAdmin = isOwner || chatMember.status === "administrator";
@@ -78,7 +78,7 @@ bot.on("message", async (msg) => {
   if (badWords.some(word => text.includes(word))) {
     if (isAdmin) return; // Admin immunity
     bot.deleteMessage(chatId, msg.message_id);
-    
+
     // Warning System: Update the user's warning count
     if (!data.warnings[userId]) {
       data.warnings[userId] = 1; // First warning for the user
@@ -100,10 +100,10 @@ bot.on("message", async (msg) => {
   }
 });
 
-// --- Admin Actions ---
+// Admin Actions
 bot.on("message", async (msg) => {
   if (!msg.reply_to_message || !data.active) return;
-  
+
   const chatId = msg.chat.id;
   const userId = msg.from.id;
   const targetId = msg.reply_to_message.from.id;
@@ -122,7 +122,7 @@ bot.on("message", async (msg) => {
       data.warnings[targetId]++; // Increment warning count
     }
     saveData();
-    
+
     bot.sendMessage(
       chatId,
       `⚠️ ${msg.reply_to_message.from.first_name} توسط ${msg.from.first_name} اخطار گرفت! \n📌 اخطار ${data.warnings[targetId]}/3`
@@ -140,14 +140,25 @@ bot.on("message", async (msg) => {
     bot.sendMessage(chatId, `🚫 ${msg.reply_to_message.from.first_name} از گروه اخراج شد!`);
   }
 
-  // Mute User
+  // Mute User (سکوت)
   if (text === "سکوت") {
-    bot.restrictChatMember(chatId, targetId, { can_send_messages: false });
-    bot.sendMessage(chatId, `🔇 ${msg.reply_to_message.from.first_name} بی‌صدا شد!`);
+    try {
+      // Restrict the user from sending messages, media, gifs, etc.
+      bot.restrictChatMember(chatId, targetId, {
+        can_send_messages: false,
+        can_send_media_messages: false,
+        can_send_other_messages: false,
+        can_send_gifs: false,
+        can_send_stickers: false
+      });
+      bot.sendMessage(chatId, `🔇 ${msg.reply_to_message.from.first_name} بی‌صدا شد!`);
+    } catch (err) {
+      console.error("Error muting user:", err);
+    }
   }
 });
 
-// --- User Report System ---
+// User Report System
 bot.on("message", async (msg) => {
   if (!msg.reply_to_message || !data.active) return;
 
