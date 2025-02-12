@@ -160,13 +160,16 @@ bot.on("message", async (msg) => {
   // Unmute User (سخنگو)
   if (text === "سخنگو") {
     try {
-      // Check if user is currently muted (restricted from sending messages)
+      // Get the current chat member status of the user
       const chatMember = await bot.getChatMember(chatId, targetId);
+
+      // Check if the user has permission to send messages (i.e., if they're muted)
       if (chatMember.permissions.can_send_messages) {
+        // If user is not muted
         return bot.sendMessage(chatId, `📣 ${msg.reply_to_message.from.first_name} قبلاً بی‌صدا نبوده!`);
       }
-      
-      // Unmute user
+
+      // Unmute user: restore permissions to send messages, media, etc.
       bot.restrictChatMember(chatId, targetId, {
         can_send_messages: true,
         can_send_media_messages: true,
