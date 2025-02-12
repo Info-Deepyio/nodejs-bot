@@ -8,6 +8,6 @@
   },
   "dependencies": {
     "node-telegram-bot-api": "^0.56.0",
-    "dotenv": "^latest" // This line will be added
+    "dotenv": "^latest"
   }
 }
