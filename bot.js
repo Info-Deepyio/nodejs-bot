@@ -5,7 +5,7 @@ const fs = require("fs");
 const TOKEN = "7948201057:AAGdjlJ7XGdObnxlIUpXfXqOXUrCILApxKE";
 const bot = new TelegramBot(TOKEN, { polling: true });
 
-// Group handle
+// Group handle (Change this to your group username)
 const ALLOWED_GROUP = "@Deepeyo";
 
 // Load data from JSON file
@@ -133,61 +133,30 @@ bot.on("message", async (msg) => {
       bot.sendMessage(chatId, `🔇 ${msg.reply_to_message.from.first_name} به دلیل 3 اخطار، بی‌صدا شد!`);
     }
   }
-
-  // Kick User
-  if (text === "کیک" || text === "صیک") {
-    bot.kickChatMember(chatId, targetId);
-    bot.sendMessage(chatId, `🚫 ${msg.reply_to_message.from.first_name} از گروه اخراج شد!`);
-  }
-
-  // Mute User (سکوت)
-  if (text === "سکوت") {
-    try {
-      // Restrict the user from sending messages, media, gifs, etc.
-      bot.restrictChatMember(chatId, targetId, {
-        can_send_messages: false,
-        can_send_media_messages: false,
-        can_send_other_messages: false,
-        can_send_gifs: false,
-        can_send_stickers: false
-      });
-      bot.sendMessage(chatId, `🔇 ${msg.reply_to_message.from.first_name} بی‌صدا شد!`);
-    } catch (err) {
-      console.error("Error muting user:", err);
-    }
-  }
-
-  // Unmute User (سخنگو)
-  if (text === "سخنگو") {
-    try {
-      // Unmute the user (restore all permissions to send messages, media, etc.)
-      await bot.restrictChatMember(chatId, targetId, {
-        can_send_messages: true,          // Allow sending messages
-        can_send_media_messages: true,    // Allow sending media
-        can_send_other_messages: true,    // Allow sending other messages
-        can_send_gifs: true,              // Allow sending GIFs
-        can_send_stickers: true           // Allow sending stickers
-      });
-
-      bot.sendMessage(chatId, `📣 ${msg.reply_to_message.from.first_name} دوباره قادر به صحبت کردن شد! 🎉`);
-    } catch (err) {
-      console.error("Error unmuting user:", err);
-      bot.sendMessage(chatId, "❌ مشکلی در انجام درخواست پیش آمد.");
-    }
-  }
 });
 
-// User Report System
+// **Report System (Fixes Included)**
 bot.on("message", async (msg) => {
   if (!msg.reply_to_message || !data.active) return;
 
   const chatId = msg.chat.id;
   const userId = msg.from.id;
+  const reportedId = msg.reply_to_message.from.id;
   const text = msg.text;
 
+  // Check if user is reporting
   if (text === "گزارش") {
-    // Get all admins
-    const admins = await bot.getChatAdministrators(chatId);
+    const chatAdmins = await bot.getChatAdministrators(chatId);
+    const reportedMember = await bot.getChatMember(chatId, reportedId);
+    const reporterMember = await bot.getChatMember(chatId, userId);
+
+    const isReportedAdmin = reportedMember.status === "creator" || reportedMember.status === "administrator";
+    const isReporterAdmin = reporterMember.status === "creator" || reporterMember.status === "administrator";
+
+    // Prevent normal users from reporting admins
+    if (!isReporterAdmin && isReportedAdmin) {
+      return bot.sendMessage(chatId, "❌ شما نمی‌توانید یک مدیر را گزارش کنید.");
+    }
 
     // Prepare the report message
     const reportedUser = msg.reply_to_message.from.first_name;
@@ -203,8 +172,8 @@ bot.on("message", async (msg) => {
       ⚠️ این پیام به تمامی ادمین‌ها و صاحب گروه ارسال شد.
     `;
 
-    // Forward the report to all admins in their DMs
-    admins.forEach((admin) => {
+    // Forward the report to all admins
+    chatAdmins.forEach((admin) => {
       if (admin.user.id !== userId) {
         bot.sendMessage(admin.user.id, reportMessage);
       }
