@@ -1,73 +1,154 @@
-const TelegramBot = require('node-telegram-bot-api');
+const TelegramBot = require("node-telegram-bot-api");
+const fs = require("fs");
 
-// Replace 'YOUR_BOT_TOKEN' with your actual bot token
-const token = '7953627451:AAFPvdnqE7GPQbmVlFNys7GvrHBARWuXAWY';
-const bot = new TelegramBot(token, { polling: true });
+// --- Bot Token (Replace with your bot token) ---
+const TOKEN = "7953627451:AAFPvdnqE7GPQbmVlFNys7GvrHBARWuXAWY";
+const bot = new TelegramBot(TOKEN, { polling: true });
 
-// Define the password (not case-sensitive)
-const PASSWORD = '@MYMINEMC';
+// --- Group handle ---
+const ALLOWED_GROUP = "@Roblocksx";
 
-// Track users waiting for a password input
-const usersAwaitingPassword = {};
+// --- Load Data from JSON ---
+const DATA_FILE = "data.json";
+let data = { active: false, warnings: {}, admins: {} };
 
-// Handle /start command
-bot.onText(/\/start/, (msg) => {
+if (fs.existsSync(DATA_FILE)) {
+  data = JSON.parse(fs.readFileSync(DATA_FILE, "utf8"));
+} else {
+  saveData();
+}
+
+// --- Save Data Function ---
+function saveData() {
+  fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2));
+}
+
+// --- Offensive Words List ---
+const badWords = [
+  "کیر", "کص", "کون", "کونده", "کصده", "جند", "کصمادر", "اوبی", "اوبنه ای",
+  "تاقال", "تاقار", "حروم", "جاکش", "حرومی", "پدرسگ", "مادرجنده", "تخم سگ"
+];
+
+// --- Bot Activation by Owner ---
+bot.on("message", async (msg) => {
   const chatId = msg.chat.id;
-  const username = msg.from.username || 'دوست عزیز';
+  const userId = msg.from.id;
+  const text = msg.text;
+  const isGroup = msg.chat.type.includes("group");
 
-  bot.sendMessage(chatId, `خوش آمدید ${username}!\n\nبرای دریافت فایل، از دستور /testfile استفاده کنید.`);
-});
+  // Ensure bot is working only in the specified group
+  if (isGroup && msg.chat.username !== ALLOWED_GROUP.replace("@", "")) return;
 
-// Handle /testfile command
-bot.onText(/\/testfile/, async (msg) => {
-  const chatId = msg.chat.id;
+  // Check if user is the owner
+  const chatMember = await bot.getChatMember(chatId, userId);
+  const isOwner = chatMember.status === "creator";
+  const isAdmin = isOwner || chatMember.status === "administrator";
 
-  try {
-    // Send the file
-    const filePath = './pack1.txt'; // Ensure this file exists in the same directory
-    await bot.sendDocument(chatId, filePath, {
-      caption: 'فایل مورد نظر برای شما ارسال شد. 📁\n\nحالا رمز فایل رو وارد کنید.'
-    });
+  // Store admins in JSON for immunity
+  if (isAdmin) data.admins[userId] = true;
 
-    // Ask for the password with a reply keyboard
-    const keyboard = {
-      reply_markup: JSON.stringify({
-        keyboard: [['بازگشت']],
-        resize_keyboard: true,
-        one_time_keyboard: true
-      })
-    };
+  // Ensure activation first
+  if (!data.active && text !== "روشن") return;
 
-    await bot.sendMessage(chatId, 'رمز فایل رو وارد کنید:', keyboard);
+  // Activation Logic
+  if (text === "روشن" && isOwner) {
+    if (data.active) {
+      return bot.sendMessage(chatId, "⚠️ ربات قبلا فعال شده است.");
+    }
+    data.active = true;
+    saveData();
+    return bot.sendMessage(chatId, "✅ ربات با موفقیت فعال شد!");
+  }
 
-    // Mark the user as awaiting a password
-    usersAwaitingPassword[chatId] = true;
-  } catch (err) {
-    console.error('Error sending file:', err);
-    bot.sendMessage(chatId, 'خطایی رخ داد. لطفا دوباره تلاش کنید.');
+  // Ignore non-active bot for everyone
+  if (!data.active) return;
+
+  // Check for offensive words
+  if (badWords.some(word => text.includes(word))) {
+    if (isAdmin) return; // Admin immunity
+    bot.deleteMessage(chatId, msg.message_id);
+    
+    // Warning System
+    data.warnings[userId] = (data.warnings[userId] || 0) + 1;
+    saveData();
+
+    bot.sendMessage(
+      chatId,
+      `⚠️ ${msg.from.first_name}، پیام شما حذف شد! \n📌 اخطار ${data.warnings[userId]}/3`
+    );
+
+    // Mute User if 3 warnings
+    if (data.warnings[userId] >= 3) {
+      bot.restrictChatMember(chatId, userId, { can_send_messages: false });
+      bot.sendMessage(chatId, `🔇 ${msg.from.first_name} به دلیل 3 اخطار، بی‌صدا شد!`);
+    }
   }
 });
 
-// Handle incoming messages (password input)
-bot.on('message', async (msg) => {
+// --- Admin Actions ---
+bot.on("message", async (msg) => {
+  if (!msg.reply_to_message || !data.active) return;
+  
   const chatId = msg.chat.id;
-  const text = msg.text.trim().toLowerCase(); // Normalize input to lowercase
+  const userId = msg.from.id;
+  const targetId = msg.reply_to_message.from.id;
+  const text = msg.text;
 
-  // Check if the user is awaiting a password
-  if (usersAwaitingPassword[chatId]) {
-    if (text === 'بازگشت') {
-      // User chose to go back
-      delete usersAwaitingPassword[chatId];
-      return bot.sendMessage(chatId, 'عملیات لغو شد. 😊');
+  const chatMember = await bot.getChatMember(chatId, userId);
+  const isAdmin = chatMember.status === "creator" || chatMember.status === "administrator";
+
+  if (!isAdmin) return;
+
+  // Warning System by Admin
+  if (text === "اخطار") {
+    data.warnings[targetId] = (data.warnings[targetId] || 0) + 1;
+    saveData();
+    
+    bot.sendMessage(
+      chatId,
+      `⚠️ ${msg.reply_to_message.from.first_name} توسط ${msg.from.first_name} اخطار گرفت! \n📌 اخطار ${data.warnings[targetId]}/3`
+    );
+
+    if (data.warnings[targetId] >= 3) {
+      bot.restrictChatMember(chatId, targetId, { can_send_messages: false });
+      bot.sendMessage(chatId, `🔇 ${msg.reply_to_message.from.first_name} به دلیل 3 اخطار، بی‌صدا شد!`);
     }
+  }
 
-    if (text === PASSWORD.toLowerCase()) {
-      // Correct password entered
-      delete usersAwaitingPassword[chatId];
-      return bot.sendMessage(chatId, 'رمز صحیح است! 🎉');
+  // Kick User
+  if (text === "کیک" || text === "صیک") {
+    bot.kickChatMember(chatId, targetId);
+    bot.sendMessage(chatId, `🚫 ${msg.reply_to_message.from.first_name} از گروه اخراج شد!`);
+  }
+
+  // Mute User
+  if (text === "سکوت") {
+    bot.restrictChatMember(chatId, targetId, { can_send_messages: false });
+    bot.sendMessage(chatId, `🔇 ${msg.reply_to_message.from.first_name} بی‌صدا شد!`);
+  }
+});
+
+// --- User Report System ---
+bot.on("message", async (msg) => {
+  if (!msg.reply_to_message || !data.active) return;
+
+  const chatId = msg.chat.id;
+  const userId = msg.from.id;
+  const text = msg.text;
+
+  if (text === "گزارش") {
+    // Fetch an admin
+    const admins = await bot.getChatAdministrators(chatId);
+    const admin = admins.find(admin => admin.user.id !== userId);
+
+    if (admin) {
+      bot.sendMessage(
+        admin.user.id,
+        `🚨 گزارش جدید:\n📌 فرستنده: ${msg.reply_to_message.from.first_name}\n📝 متن: ${msg.reply_to_message.text || "بدون متن"}\n👤 گزارش دهنده: ${msg.from.first_name}`
+      );
+      bot.sendMessage(chatId, "📩 گزارش شما ارسال شد!");
     } else {
-      // Incorrect password, ask again
-      return bot.sendMessage(chatId, 'رمز اشتباه است. لطفا دوباره وارد کنید:');
+      bot.sendMessage(chatId, "⚠️ هیچ ادمینی در گروه نیست!");
     }
   }
 });
