@@ -208,8 +208,12 @@ bot.on("message", async (msg) => {
       inline_keyboard: [
         [
           {
-            text: "ارسال اخطار",
-            callback_data: `warning_${reportedUser}_${reportedBy}_${reportedUser}`
+            text: "ارسال اخطار به گزارش‌دهنده",
+            callback_data: `warning_reporter_${userId}_${reportedBy}_${reportedUser}`
+          },
+          {
+            text: "ارسال اخطار به کاربر گزارش شده",
+            callback_data: `warning_reported_${targetId}_${reportedBy}_${reportedUser}`
           }
         ]
       ]
@@ -233,17 +237,19 @@ bot.on("callback_query", async (query) => {
   const userId = query.from.id;
   const data = query.data;
 
-  // Split the callback data to get reported user and reporter
+  // Split the callback data to get the action and the user
   const parts = data.split('_');
-  const reportedUser = parts[1];
+  const action = parts[0];
+  const targetUserId = parts[1];
   const reportedBy = parts[2];
+  const reportedUser = parts[3];
 
-  if (data.startsWith("warning_")) {
-    // Add a warning to the reporter
-    if (!data.warnings[userId]) {
-      data.warnings[userId] = 1; // First warning for the user
+  if (action === "warning_reporter") {
+    // Handle warning for the reporter
+    if (!data.warnings[targetUserId]) {
+      data.warnings[targetUserId] = 1; // First warning for the user
     } else {
-      data.warnings[userId]++; // Increment warning count
+      data.warnings[targetUserId]++; // Increment warning count
     }
     saveData();
 
@@ -253,6 +259,28 @@ bot.on("callback_query", async (query) => {
     // Update the report message with warning status
     bot.editMessageText(
       query.message.text + `\n📌 کاربر ${reportedBy} اخطار گرفت و در گپ پیام اخطار ارسال شد. 🚨`,
+      { chat_id: chatId, message_id: query.message.message_id }
+    );
+
+    // Acknowledge the action to the admin
+    bot.answerCallbackQuery(query.id, { text: "اخطار ارسال شد!", show_alert: false });
+  }
+
+  if (action === "warning_reported") {
+    // Handle warning for the reported user
+    if (!data.warnings[targetUserId]) {
+      data.warnings[targetUserId] = 1; // First warning for the user
+    } else {
+      data.warnings[targetUserId]++; // Increment warning count
+    }
+    saveData();
+
+    // Send the warning message to the chat
+    bot.sendMessage(chatId, `⚠️ کاربر ${reportedUser} به دلیل گزارش اخطار گرفت!`);
+
+    // Update the report message with warning status
+    bot.editMessageText(
+      query.message.text + `\n📌 کاربر ${reportedUser} اخطار گرفت و در گپ پیام اخطار ارسال شد. 🚨`,
       { chat_id: chatId, message_id: query.message.message_id }
     );
 
