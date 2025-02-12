@@ -7,7 +7,6 @@
     "start": "node bot.js"
   },
   "dependencies": {
-    "node-telegram-bot-api": "^0.56.0",
-    "dotenv": "^latest"
+    "node-telegram-bot-api": "^0.56.0"
   }
 }
