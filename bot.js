@@ -40,7 +40,7 @@ const badWords = [
   "تاقال", "تاقار", "حروم", "جاکش", "حرومی", "پدرسگ", "مادرجنده", "تخم سگ"
 ];
 
-// Bot Activation by Owner
+// ✅ **Bot Activation**
 bot.on("message", async (msg) => {
   const chatId = msg.chat.id;
   const userId = msg.from.id;
@@ -58,9 +58,7 @@ bot.on("message", async (msg) => {
   if (!data.active && text !== "روشن") return;
 
   if (text === "روشن" && isOwner) {
-    if (data.active) {
-      return bot.sendMessage(chatId, "⚠️ ربات قبلا فعال شده است.");
-    }
+    if (data.active) return bot.sendMessage(chatId, "⚠️ ربات قبلا فعال شده است.");
     data.active = true;
     saveData();
     return bot.sendMessage(chatId, "✅ ربات با موفقیت فعال شد!");
@@ -68,15 +66,11 @@ bot.on("message", async (msg) => {
 
   if (!data.active) return;
 
+  // ✅ **Anti-Swear System**
   if (badWords.some(word => text.includes(word))) {
     if (isAdmin) return;
     bot.deleteMessage(chatId, msg.message_id);
-
-    if (!data.warnings[userId]) {
-      data.warnings[userId] = 1;
-    } else {
-      data.warnings[userId]++;
-    }
+    data.warnings[userId] = (data.warnings[userId] || 0) + 1;
     saveData();
 
     bot.sendMessage(
@@ -91,7 +85,53 @@ bot.on("message", async (msg) => {
   }
 });
 
-// Admin Actions
+// ✅ **Report System**
+bot.on("message", async (msg) => {
+  if (!msg.reply_to_message || !data.active) return;
+
+  const chatId = msg.chat.id;
+  const userId = msg.from.id;
+  const text = msg.text;
+
+  if (text === "گزارش") {
+    const admins = await bot.getChatAdministrators(chatId);
+    const reportedUser = msg.reply_to_message.from;
+    const reportedBy = msg.from;
+
+    if (data.admins[reportedUser.id]) {
+      return bot.sendMessage(chatId, "❌ شما نمی‌توانید یک ادمین را گزارش کنید!");
+    }
+
+    const reportText = msg.reply_to_message.text || "📷 [رسانه ارسال شده]";
+    const reportMessage = `
+🚨 **گزارش جدید**
+📌 **گزارش دهنده**: ${reportedBy.first_name}
+📝 **پیام گزارش شده**: ${reportText}
+👤 **کاربر گزارش شده**: ${reportedUser.first_name}
+⚠️ این پیام به تمامی ادمین‌ها و صاحب گروه ارسال شد.
+    `;
+
+    let sentToAdmins = 0;
+    for (const admin of admins) {
+      try {
+        if (admin.user.id !== userId) {
+          await bot.sendMessage(admin.user.id, reportMessage);
+          sentToAdmins++;
+        }
+      } catch (err) {
+        console.error(`⚠️ نمی‌توان پیام را برای ${admin.user.id} ارسال کرد.`);
+      }
+    }
+
+    if (sentToAdmins > 0) {
+      bot.sendMessage(chatId, "📩 گزارش شما ارسال شد!");
+    } else {
+      bot.sendMessage(chatId, "❌ امکان ارسال گزارش به ادمین‌ها وجود ندارد.");
+    }
+  }
+});
+
+// ✅ **Admin Commands**
 bot.on("message", async (msg) => {
   if (!msg.reply_to_message || !data.active) return;
 
@@ -105,30 +145,25 @@ bot.on("message", async (msg) => {
 
   if (!isAdmin) return;
 
+  // **Warn User**
   if (text === "اخطار") {
-    if (!data.warnings[targetId]) {
-      data.warnings[targetId] = 1;
-    } else {
-      data.warnings[targetId]++;
-    }
+    data.warnings[targetId] = (data.warnings[targetId] || 0) + 1;
     saveData();
+    bot.sendMessage(chatId, `⚠️ ${msg.reply_to_message.from.first_name} اخطار گرفت! (${data.warnings[targetId]}/3)`);
+  }
 
-    bot.sendMessage(
-      chatId,
-      `⚠️ ${msg.reply_to_message.from.first_name} توسط ${msg.from.first_name} اخطار گرفت! \n📌 اخطار ${data.warnings[targetId]}/3`
-    );
-
-    if (data.warnings[targetId] >= 3) {
-      bot.restrictChatMember(chatId, targetId, { can_send_messages: false });
-      bot.sendMessage(chatId, `🔇 ${msg.reply_to_message.from.first_name} به دلیل 3 اخطار، بی‌صدا شد!`);
+  // **Remove Warning**
+  if (text === "حذف اخطار") {
+    if (data.warnings[targetId] && data.warnings[targetId] > 0) {
+      data.warnings[targetId]--;
+      saveData();
+      bot.sendMessage(chatId, `✅ یک اخطار از ${msg.reply_to_message.from.first_name} حذف شد!`);
+    } else {
+      bot.sendMessage(chatId, "❌ این کاربر هیچ اخطاری ندارد!");
     }
   }
 
-  if (text === "کیک" || text === "صیک") {
-    bot.kickChatMember(chatId, targetId);
-    bot.sendMessage(chatId, `🚫 ${msg.reply_to_message.from.first_name} از گروه اخراج شد!`);
-  }
-
+  // **Mute & Unmute**
   if (text === "سکوت") {
     bot.restrictChatMember(chatId, targetId, { can_send_messages: false });
     bot.sendMessage(chatId, `🔇 ${msg.reply_to_message.from.first_name} بی‌صدا شد!`);
@@ -139,63 +174,25 @@ bot.on("message", async (msg) => {
     bot.sendMessage(chatId, `📣 ${msg.reply_to_message.from.first_name} دوباره قادر به صحبت کردن شد! 🎉`);
   }
 
-  if (text === "حذف اخطار") {
-    if (!data.warnings[targetId] || data.warnings[targetId] === 0) {
-      return bot.sendMessage(chatId, `❌ ${msg.reply_to_message.from.first_name} هیچ اخطاری ندارد که حذف شود!`);
-    }
-
-    data.warnings[targetId]--;
-    saveData();
-
-    bot.sendMessage(chatId, `✅ اخطار از ${msg.reply_to_message.from.first_name} توسط ${msg.from.first_name} حذف شد! \n📌 اخطار باقی‌مانده: ${data.warnings[targetId]}/3`);
+  // **Kick User (صیک / کیک)**
+  if (text === "کیک" || text === "صیک") {
+    bot.kickChatMember(chatId, targetId);
+    bot.sendMessage(chatId, `🚫 ${msg.reply_to_message.from.first_name} از گروه اخراج شد!`);
   }
 });
 
-// User Report System
-bot.on("message", async (msg) => {
-  if (!msg.reply_to_message || !data.active) return;
-
-  const chatId = msg.chat.id;
-  const userId = msg.from.id;
-  const text = msg.text;
-
-  if (text === "گزارش") {
-    const admins = await bot.getChatAdministrators(chatId);
-    const reportedUser = msg.reply_to_message.from.first_name;
-    const reportText = msg.reply_to_message.text || "بدون متن";
-    const reportedBy = msg.from.first_name;
-
-    const reportMessage = `
-🚨 **گزارش جدید**
-📌 **گزارش دهنده**: ${reportedBy}
-📝 **پیام گزارش شده**: ${reportText}
-👤 **کاربر گزارش شده**: ${reportedUser}
-
-⚠️ این پیام به تمامی ادمین‌ها و صاحب گروه ارسال شد.
-    `;
-
-    admins.forEach((admin) => {
-      if (admin.user.id !== userId) {
-        bot.sendMessage(admin.user.id, reportMessage);
-      }
-    });
-
-    bot.sendMessage(chatId, "📩 گزارش شما ارسال شد!");
-  }
-});
-
-// Send command list
-bot.on("message", (msg) => {
-  if (msg.text === "لیست" && msg.chat.type.includes("group")) {
-    bot.sendMessage(msg.chat.id, `
-📜 **لیست دستورات ربات:**  
-🔹 **روشن** - فعال‌سازی ربات  
-🔹 **اخطار** - ارسال اخطار به یک کاربر  
-🔹 **حذف اخطار** - حذف یک اخطار از کاربر  
-🔹 **کیک** - اخراج کاربر  
-🔹 **سکوت** - بی‌صدا کردن کاربر  
-🔹 **سخنگو** - رفع سکوت کاربر  
-🔹 **گزارش** - گزارش پیام کاربر به ادمین‌ها  
-`);
-  }
+// ✅ **Help Command**
+bot.onText(/لیست/, (msg) => {
+  bot.sendMessage(msg.chat.id, `
+📜 **دستورات ربات:**
+🔹 روشن – فعال‌سازی ربات
+🔹 اخطار – دادن اخطار
+🔹 حذف اخطار – حذف اخطار
+🔹 سکوت – بی‌صدا کردن
+🔹 سخنگو – رفع سکوت
+🔹 کیک / صیک – اخراج کاربر
+🔹 گزارش – گزارش کاربر
+🔹 لیست – نمایش این لیست
+⚠️ **این ربات پیام‌های توهین‌آمیز را حذف و متخلفین را جریمه می‌کند.**
+  `);
 });
