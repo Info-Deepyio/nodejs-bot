@@ -2,7 +2,7 @@ const TelegramBot = require("node-telegram-bot-api");
 const fs = require("fs");
 
 // --- Bot Token (Replace with your bot token) ---
-const TOKEN = "7953627451:AAFPvdnqE7GPQbmVlFNys7GvrHBARWuXAWY";
+const TOKEN = "YOUR_TELEGRAM_BOT_TOKEN";
 const bot = new TelegramBot(TOKEN, { polling: true });
 
 // --- Group handle ---
@@ -10,17 +10,28 @@ const ALLOWED_GROUP = "@Roblocksx";
 
 // --- Load Data from JSON ---
 const DATA_FILE = "data.json";
-let data = { active: false, warnings: {}, admins: {} };
 
+// Initialize data structure if `data.json` doesn't exist
+let data = {
+  active: false,
+  warnings: {},
+  admins: {}
+};
+
+// Check if data.json exists, otherwise create it
 if (fs.existsSync(DATA_FILE)) {
-  data = JSON.parse(fs.readFileSync(DATA_FILE, "utf8"));
+  try {
+    data = JSON.parse(fs.readFileSync(DATA_FILE, "utf8"));
+  } catch (error) {
+    console.error("Error reading data.json:", error);
+  }
 } else {
   saveData();
 }
 
 // --- Save Data Function ---
 function saveData() {
-  fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2));
+  fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2), "utf8");
 }
 
 // --- Offensive Words List ---
@@ -68,8 +79,12 @@ bot.on("message", async (msg) => {
     if (isAdmin) return; // Admin immunity
     bot.deleteMessage(chatId, msg.message_id);
     
-    // Warning System
-    data.warnings[userId] = (data.warnings[userId] || 0) + 1;
+    // Warning System: Update the user's warning count
+    if (!data.warnings[userId]) {
+      data.warnings[userId] = 1; // First warning for the user
+    } else {
+      data.warnings[userId]++; // Increment warning count
+    }
     saveData();
 
     bot.sendMessage(
@@ -101,7 +116,11 @@ bot.on("message", async (msg) => {
 
   // Warning System by Admin
   if (text === "اخطار") {
-    data.warnings[targetId] = (data.warnings[targetId] || 0) + 1;
+    if (!data.warnings[targetId]) {
+      data.warnings[targetId] = 1; // First warning for the user
+    } else {
+      data.warnings[targetId]++; // Increment warning count
+    }
     saveData();
     
     bot.sendMessage(
