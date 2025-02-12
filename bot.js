@@ -213,7 +213,7 @@ bot.on("message", async (msg) => {
           },
           {
             text: "ارسال اخطار به کاربر گزارش شده",
-            callback_data: `warning_reported_${targetId}_${reportedBy}_${reportedUser}`
+            callback_data: `warning_reported_${msg.reply_to_message.from.id}_${reportedBy}_${reportedUser}`
           }
         ]
       ]
