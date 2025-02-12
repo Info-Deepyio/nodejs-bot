@@ -136,8 +136,13 @@ bot.on("message", async (msg) => {
 
   // Kick User
   if (text === "کیک" || text === "صیک") {
-    bot.kickChatMember(chatId, targetId);
-    bot.sendMessage(chatId, `🚫 ${msg.reply_to_message.from.first_name} از گروه اخراج شد!`);
+    try {
+      await bot.kickChatMember(chatId, targetId); // Fixed: Make sure this is an async function
+      bot.sendMessage(chatId, `🚫 ${msg.reply_to_message.from.first_name} از گروه اخراج شد!`);
+    } catch (error) {
+      console.error("Error kicking user:", error);
+      bot.sendMessage(chatId, "❌ مشکلی در اخراج کاربر پیش آمد.");
+    }
   }
 
   // Mute User (سکوت)
@@ -233,20 +238,17 @@ bot.on("message", async (msg) => {
     const reportMessage = `
       🚨 **گزارش جدید**
       📌 **گزارش دهنده**: ${reportedBy}
-      📝 **پیام گزارش شده**: ${reportText}
-      👤 **کاربر گزارش شده**: ${reportedUser}
-
-      ⚠️ این پیام به تمامی ادمین‌ها و صاحب گروه ارسال شد.
+      📝 **گزارش شده**: ${reportedUser}
+      📄 **متن گزارش**: ${reportText}
     `;
 
-    // Forward the report to all admins in their DMs
-    admins.forEach((admin) => {
-      if (admin.user.id !== userId) {
+    // Send the report to all admins
+    admins.forEach(admin => {
+      if (admin.user.id !== userId) { // Don't send the report to the user who reported
         bot.sendMessage(admin.user.id, reportMessage);
       }
     });
 
-    // Acknowledge the report to the user
-    bot.sendMessage(chatId, "📩 گزارش شما ارسال شد!");
+    bot.sendMessage(chatId, `✅ گزارش شما با موفقیت ارسال شد.`);
   }
 });
