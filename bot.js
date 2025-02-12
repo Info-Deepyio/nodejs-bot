@@ -6,7 +6,7 @@ const TOKEN = "7948201057:AAGdjlJ7XGdObnxlIUpXfXqOXUrCILApxKE";
 const bot = new TelegramBot(TOKEN, { polling: true });
 
 // Group handle
-const ALLOWED_GROUP = "@Roblocksx";
+const ALLOWED_GROUP = "@Deepeyo";
 
 // Load data from JSON file
 const DATA_FILE = "data.json";
@@ -289,13 +289,24 @@ bot.on("message", async (msg) => {
         📄 **متن گزارش**: ${reportText}
       `;
 
-      admins.forEach(admin => {
-        if (admin.user.id !== userId) {
-          bot.sendMessage(admin.user.id, reportMessage);
-        }
-      });
+      let reportSent = false;
 
-      bot.sendMessage(chatId, `✅ گزارش شما با موفقیت ارسال شد.`);
+      for (const admin of admins) {
+        if (admin.user.id !== userId) {
+          try {
+            await bot.sendMessage(admin.user.id, reportMessage);
+            reportSent = true;
+          } catch (error) {
+            console.error(`Failed to send report to admin ${admin.user.id}:`, error);
+          }
+        }
+      }
+
+      if (reportSent) {
+        bot.sendMessage(chatId, `✅ گزارش شما با موفقیت ارسال شد.`);
+      } else {
+        bot.sendMessage(chatId, `❌ گزارش شما ارسال نشد. مطمئن شوید که ادمین‌ها با ربات چت کرده‌اند.`);
+      }
     } catch (error) {
       console.error("Error sending report:", error);
       bot.sendMessage(chatId, "❌ مشکلی در ارسال گزارش پیش آمد.");
