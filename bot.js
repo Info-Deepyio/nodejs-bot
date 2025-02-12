@@ -156,6 +156,31 @@ bot.on("message", async (msg) => {
       console.error("Error muting user:", err);
     }
   }
+
+  // Unmute User (سخنگو)
+  if (text === "سخنگو") {
+    try {
+      // Check if user is currently muted (restricted from sending messages)
+      const chatMember = await bot.getChatMember(chatId, targetId);
+      if (chatMember.permissions.can_send_messages) {
+        return bot.sendMessage(chatId, `📣 ${msg.reply_to_message.from.first_name} قبلاً بی‌صدا نبوده!`);
+      }
+      
+      // Unmute user
+      bot.restrictChatMember(chatId, targetId, {
+        can_send_messages: true,
+        can_send_media_messages: true,
+        can_send_other_messages: true,
+        can_send_gifs: true,
+        can_send_stickers: true
+      });
+
+      bot.sendMessage(chatId, `📣 ${msg.reply_to_message.from.first_name} دوباره قادر به صحبت کردن شد! 🎉`);
+    } catch (err) {
+      console.error("Error unmuting user:", err);
+      bot.sendMessage(chatId, "❌ مشکلی در انجام درخواست پیش آمد.");
+    }
+  }
 });
 
 // User Report System
@@ -167,18 +192,31 @@ bot.on("message", async (msg) => {
   const text = msg.text;
 
   if (text === "گزارش") {
-    // Fetch an admin
+    // Get all admins
     const admins = await bot.getChatAdministrators(chatId);
-    const admin = admins.find(admin => admin.user.id !== userId);
 
-    if (admin) {
-      bot.sendMessage(
-        admin.user.id,
-        `🚨 گزارش جدید:\n📌 فرستنده: ${msg.reply_to_message.from.first_name}\n📝 متن: ${msg.reply_to_message.text || "بدون متن"}\n👤 گزارش دهنده: ${msg.from.first_name}`
-      );
-      bot.sendMessage(chatId, "📩 گزارش شما ارسال شد!");
-    } else {
-      bot.sendMessage(chatId, "⚠️ هیچ ادمینی در گروه نیست!");
-    }
+    // Prepare the report message
+    const reportedUser = msg.reply_to_message.from.first_name;
+    const reportText = msg.reply_to_message.text || "بدون متن";
+    const reportedBy = msg.from.first_name;
+
+    const reportMessage = `
+      🚨 **گزارش جدید**
+      📌 **گزارش دهنده**: ${reportedBy}
+      📝 **پیام گزارش شده**: ${reportText}
+      👤 **کاربر گزارش شده**: ${reportedUser}
+
+      ⚠️ این پیام به تمامی ادمین‌ها و صاحب گروه ارسال شد.
+    `;
+
+    // Forward the report to all admins in their DMs
+    admins.forEach((admin) => {
+      if (admin.user.id !== userId) {
+        bot.sendMessage(admin.user.id, reportMessage);
+      }
+    });
+
+    // Acknowledge the report to the user
+    bot.sendMessage(chatId, "📩 گزارش شما ارسال شد!");
   }
 });
