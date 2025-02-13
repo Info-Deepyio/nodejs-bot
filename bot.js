@@ -14,7 +14,7 @@ const DATA_FILE = "data.json";
 // Initialize data structure if `data.json` doesn't exist
 let data = {
   active: false,
-  admins: {},
+  admins: {}
 };
 
 // Warnings tracking (separate from data object)
@@ -41,6 +41,79 @@ function saveData() {
   }
 }
 
+// Offensive words list
+const badWords = [
+  "کیر", "کص", "کون", "کونده", "کصده", "جند", "کصمادر", "اوبی", "اوبنه ای",
+  "تاقال", "تاقار", "حروم", "جاکش", "حرومی", "پدرسگ", "مادرجنده", "تخم سگ"
+];
+
+// Function to check if the bot is in the allowed group
+function isAllowedGroup(chat) {
+  return chat.type === "supergroup" && chat.username === ALLOWED_GROUP.replace("@", "");
+}
+
+// Handle activation
+async function handleActivation(msg) {
+  const chatId = msg.chat.id;
+  const userId = msg.from.id;
+  const text = msg.text;
+
+  if (!isAllowedGroup(msg.chat)) return;
+
+  const chatMember = await bot.getChatMember(chatId, userId);
+  const isOwner = chatMember.status === "creator";
+
+  if (text === "روشن" && isOwner) {
+    if (data.active) {
+      return bot.sendMessage(chatId, "⚠️ ربات قبلا فعال شده است.");
+    }
+    data.active = true;
+    saveData();
+    return bot.sendMessage(chatId, "✅ ربات با موفقیت فعال شد!");
+  }
+}
+
+// Handle offensive words
+async function handleBadWords(msg) {
+  const chatId = msg.chat.id;
+  const userId = msg.from.id;
+  const text = msg.text;
+
+  if (!data.active || !isAllowedGroup(msg.chat)) return;
+
+  const isAdmin = await isAdminUser(chatId, userId);
+  if (isAdmin) return; // Admins are immune
+
+  if (badWords.some(word => text.includes(word))) {
+    bot.deleteMessage(chatId, msg.message_id);
+
+    if (!warnings[userId]) {
+      warnings[userId] = { count: 0, mutedDueToWarnings: false };
+    }
+
+    if (warnings[userId].count < 3) {
+      warnings[userId].count++;
+      saveWarnings();
+
+      bot.sendMessage(
+        chatId,
+        `⚠️ ${msg.from.first_name}، پیام شما حذف شد! \n📌 اخطار ${warnings[userId].count}/3`
+      );
+
+      if (warnings[userId].count >= 3) {
+        warnings[userId].mutedDueToWarnings = true;
+        await bot.restrictChatMember(chatId, userId, { can_send_messages: false });
+        bot.sendMessage(chatId, `🔇 ${msg.from.first_name} به دلیل 3 اخطار، بی‌صدا شد!`);
+      }
+    } else {
+      bot.sendMessage(
+        chatId,
+        `❌ ${msg.from.first_name} قبلاً 3 اخطار دریافت کرده و بی‌صدا شده است!`
+      );
+    }
+  }
+}
+
 // Save warnings to a separate file
 function saveWarnings() {
   try {
@@ -64,119 +137,10 @@ function loadWarnings() {
   }
 }
 
-// Offensive words list
-const badWords = [
-  "کیر",
-  "کص",
-  "کون",
-  "کونده",
-  "کصده",
-  "جند",
-  "کصمادر",
-  "اوبی",
-  "اوبنه ای",
-  "تاقال",
-  "تاقار",
-  "حروم",
-  "جاکش",
-  "حرومی",
-  "پدرسگ",
-  "مادرجنده",
-  "تخم سگ",
-];
-
-// Function to check if the bot is in the allowed group
-function isAllowedGroup(chat) {
-  return chat.type === "supergroup" && chat.username === ALLOWED_GROUP.replace("@", "");
-}
-
 // Check if a user is an admin or owner
 async function isAdminUser(chatId, userId) {
-  try {
-    const chatMember = await bot.getChatMember(chatId, userId);
-    return chatMember.status === "creator" || chatMember.status === "administrator";
-  } catch (error) {
-    console.error("Error checking admin status:", error);
-    return false; // Default to non-admin if an error occurs
-  }
-}
-
-// Handle activation
-async function handleActivation(msg) {
-  const chatId = msg.chat.id;
-  const userId = msg.from.id;
-  const text = msg.text;
-
-  if (!isAllowedGroup(msg.chat)) {
-    return bot.sendMessage(chatId, "❌ ربات فقط در گروه مجاز کار می‌کند.");
-  }
-
-  try {
-    const chatMember = await bot.getChatMember(chatId, userId);
-
-    // Ensure the user is the owner of the group
-    if (chatMember.status !== "creator") {
-      return bot.sendMessage(chatId, "❌ تنها صاحب گروه می‌تواند ربات را فعال کند.");
-    }
-
-    if (text === "روشن") {
-      if (data.active) {
-        return bot.sendMessage(chatId, "⚠️ ربات قبلا فعال شده است.");
-      }
-
-      data.active = true;
-      saveData();
-      return bot.sendMessage(chatId, "✅ ربات با موفقیت فعال شد!");
-    }
-  } catch (error) {
-    console.error("Error activating bot:", error);
-    bot.sendMessage(chatId, "❌ مشکلی در فعال‌سازی ربات پیش آمد.");
-  }
-}
-
-// Handle offensive words
-async function handleBadWords(msg) {
-  const chatId = msg.chat.id;
-  const userId = msg.from.id;
-  const text = msg.text;
-
-  if (!data.active || !isAllowedGroup(msg.chat)) return;
-
-  try {
-    const isAdmin = await isAdminUser(chatId, userId);
-    if (isAdmin) return; // Admins are immune to offensive word detection
-
-    if (badWords.some((word) => text.includes(word))) {
-      bot.deleteMessage(chatId, msg.message_id);
-
-      if (!warnings[userId]) {
-        warnings[userId] = { count: 0, mutedDueToWarnings: false };
-      }
-
-      if (warnings[userId].count < 3) {
-        warnings[userId].count++;
-        saveWarnings();
-
-        bot.sendMessage(
-          chatId,
-          `⚠️ ${msg.from.first_name}، پیام شما حذف شد! \n📌 اخطار ${warnings[userId].count}/3`
-        );
-
-        if (warnings[userId].count >= 3) {
-          warnings[userId].mutedDueToWarnings = true;
-          await bot.restrictChatMember(chatId, userId, { can_send_messages: false });
-          bot.sendMessage(chatId, `🔇 ${msg.from.first_name} به دلیل 3 اخطار، بی‌صدا شد!`);
-        }
-      } else {
-        bot.sendMessage(
-          chatId,
-          `❌ ${msg.from.first_name} قبلاً 3 اخطار دریافت کرده و بی‌صدا شده است!`
-        );
-      }
-    }
-  } catch (error) {
-    console.error("Error handling bad words:", error);
-  }
+  const chatMember = await bot.getChatMember(chatId, userId);
+  return chatMember.status === "creator" || chatMember.status === "administrator";
 }
 
 // Admin actions
@@ -188,47 +152,37 @@ async function handleAdminActions(msg) {
 
   if (!data.active || !isAllowedGroup(msg.chat)) return;
 
-  try {
-    const isAdmin = await isAdminUser(chatId, userId);
-    if (!isAdmin) return;
+  const isAdmin = await isAdminUser(chatId, userId);
+  if (!isAdmin) return;
 
-    // Ensure the target is not an admin
-    if (await isAdminUser(chatId, targetId)) {
-      return bot.sendMessage(chatId, "❌ نمی‌توانید روی ادمین‌ها عملیات انجام دهید!");
-    }
+  switch (text) {
+    case "اخطار":
+      handleWarning(chatId, targetId, msg);
+      break;
 
-    switch (text) {
-      case "اخطار":
-        handleWarning(chatId, targetId, msg);
-        break;
+    case "کیک":
+    case "صیک":
+      handleKick(chatId, targetId, msg);
+      break;
 
-      case "کیک":
-      case "صیک":
-        handleKick(chatId, targetId, msg);
-        break;
+    case "سکوت":
+      handleMute(chatId, targetId, msg);
+      break;
 
-      case "سکوت":
-        handleMute(chatId, targetId, msg);
-        break;
+    case "سخنگو":
+      handleUnmute(chatId, targetId, msg);
+      break;
 
-      case "سخنگو":
-        handleUnmute(chatId, targetId, msg);
-        break;
+    case "حذف اخطار":
+      handleRemoveWarning(chatId, targetId, msg);
+      break;
 
-      case "حذف اخطار":
-        handleRemoveWarning(chatId, targetId, msg);
-        break;
+    case "لیست":
+      handleCommandList(chatId);
+      break;
 
-      case "لیست":
-        handleCommandList(chatId);
-        break;
-
-      default:
-        break;
-    }
-  } catch (error) {
-    console.error("Error handling admin actions:", error);
-    bot.sendMessage(chatId, "❌ مشکلی در اجرای دستور پیش آمد.");
+    default:
+      break;
   }
 }
 
@@ -236,39 +190,29 @@ async function handleAdminActions(msg) {
 function handleWarning(chatId, targetId, msg) {
   if (!targetId) return bot.sendMessage(chatId, "❌ لطفا به یک پیام پاسخ دهید.");
 
-  try {
-    // Ensure the target is not an admin
-    if (await isAdminUser(chatId, targetId)) {
-      return bot.sendMessage(chatId, "❌ نمی‌توانید به ادمین‌ها اخطار دهید!");
+  if (!warnings[targetId]) {
+    warnings[targetId] = { count: 0, mutedDueToWarnings: false };
+  }
+
+  if (warnings[targetId].count < 3) {
+    warnings[targetId].count++;
+    saveWarnings();
+
+    bot.sendMessage(
+      chatId,
+      `⚠️ ${msg.reply_to_message.from.first_name} توسط ${msg.from.first_name} اخطار گرفت! \n📌 اخطار ${warnings[targetId].count}/3`
+    );
+
+    if (warnings[targetId].count >= 3) {
+      warnings[targetId].mutedDueToWarnings = true;
+      bot.restrictChatMember(chatId, targetId, { can_send_messages: false });
+      bot.sendMessage(chatId, `🔇 ${msg.reply_to_message.from.first_name} به دلیل 3 اخطار، بی‌صدا شد!`);
     }
-
-    if (!warnings[targetId]) {
-      warnings[targetId] = { count: 0, mutedDueToWarnings: false };
-    }
-
-    if (warnings[targetId].count < 3) {
-      warnings[targetId].count++;
-      saveWarnings();
-
-      bot.sendMessage(
-        chatId,
-        `⚠️ ${msg.reply_to_message.from.first_name} توسط ${msg.from.first_name} اخطار گرفت! \n📌 اخطار ${warnings[targetId].count}/3`
-      );
-
-      if (warnings[targetId].count >= 3) {
-        warnings[targetId].mutedDueToWarnings = true;
-        bot.restrictChatMember(chatId, targetId, { can_send_messages: false });
-        bot.sendMessage(chatId, `🔇 ${msg.reply_to_message.from.first_name} به دلیل 3 اخطار، بی‌صدا شد!`);
-      }
-    } else {
-      bot.sendMessage(
-        chatId,
-        `❌ ${msg.reply_to_message.from.first_name} قبلاً 3 اخطار دریافت کرده و بی‌صدا شده است!`
-      );
-    }
-  } catch (error) {
-    console.error("Error handling warning:", error);
-    bot.sendMessage(chatId, "❌ مشکلی در ارسال اخطار پیش آمد.");
+  } else {
+    bot.sendMessage(
+      chatId,
+      `❌ ${msg.reply_to_message.from.first_name} قبلاً 3 اخطار دریافت کرده و بی‌صدا شده است!`
+    );
   }
 }
 
@@ -277,11 +221,6 @@ async function handleKick(chatId, targetId, msg) {
   if (!targetId) return bot.sendMessage(chatId, "❌ لطفا به یک پیام پاسخ دهید.");
 
   try {
-    // Ensure the target is not an admin
-    if (await isAdminUser(chatId, targetId)) {
-      return bot.sendMessage(chatId, "❌ نمی‌توانید ادمین‌ها را اخراج کنید!");
-    }
-
     await bot.kickChatMember(chatId, targetId);
     bot.sendMessage(chatId, `🚫 ${msg.reply_to_message.from.first_name} از گروه اخراج شد!`);
   } catch (error) {
@@ -295,17 +234,12 @@ async function handleMute(chatId, targetId, msg) {
   if (!targetId) return bot.sendMessage(chatId, "❌ لطفا به یک پیام پاسخ دهید.");
 
   try {
-    // Ensure the target is not an admin
-    if (await isAdminUser(chatId, targetId)) {
-      return bot.sendMessage(chatId, "❌ نمی‌توانید ادمین‌ها را بی‌صدا کنید!");
-    }
-
     await bot.restrictChatMember(chatId, targetId, {
       can_send_messages: false,
       can_send_media_messages: false,
       can_send_polls: false,
       can_send_other_messages: false,
-      can_add_web_page_previews: false,
+      can_add_web_page_previews: false
     });
     bot.sendMessage(chatId, `🔇 ${msg.reply_to_message.from.first_name} بی‌صدا شد!`);
   } catch (error) {
@@ -324,7 +258,7 @@ async function handleUnmute(chatId, targetId, msg) {
       can_send_media_messages: true,
       can_send_polls: true,
       can_send_other_messages: true,
-      can_add_web_page_previews: true,
+      can_add_web_page_previews: true
     });
     bot.sendMessage(chatId, `📣 ${msg.reply_to_message.from.first_name} دوباره قادر به صحبت کردن شد! 🎉`);
   } catch (error) {
@@ -337,48 +271,41 @@ async function handleUnmute(chatId, targetId, msg) {
 function handleRemoveWarning(chatId, targetId, msg) {
   if (!targetId) return bot.sendMessage(chatId, "❌ لطفا به یک پیام پاسخ دهید.");
 
-  try {
-    // Ensure the target is not an admin
-    if (await isAdminUser(chatId, targetId)) {
-      return bot.sendMessage(chatId, "❌ نمی‌توانید اخطار ادمین‌ها را حذف کنید!");
+  if (!warnings[targetId]) {
+    return bot.sendMessage(chatId, `❌ ${msg.reply_to_message.from.first_name} هیچ اخطاری ندارد!`);
+  }
+
+  if (warnings[targetId].count > 0) {
+    warnings[targetId].count--;
+
+    if (warnings[targetId].count === 0 && warnings[targetId].mutedDueToWarnings) {
+      // Unmute the user if they were muted due to warnings and now have 0 warnings
+      warnings[targetId].mutedDueToWarnings = false;
+
+      bot.restrictChatMember(chatId, targetId, {
+        can_send_messages: true,
+        can_send_media_messages: true,
+        can_send_polls: true,
+        can_send_other_messages: true,
+        can_add_web_page_previews: true
+      }).then(() => {
+        bot.sendMessage(
+          chatId,
+          `🎉 ${msg.reply_to_message.from.first_name} از سکوت خارج شد و مجدد قادر به صحبت کردن است!`
+        );
+      }).catch((error) => {
+        console.error("Error auto-unmuting user:", error);
+      });
     }
 
-    if (!warnings[targetId]) {
-      return bot.sendMessage(chatId, `❌ ${msg.reply_to_message.from.first_name} هیچ اخطاری ندارد!`);
-    }
+    saveWarnings();
 
-    if (warnings[targetId].count > 0) {
-      warnings[targetId].count--;
-
-      if (warnings[targetId].count === 0 && warnings[targetId].mutedDueToWarnings) {
-        warnings[targetId].mutedDueToWarnings = false;
-
-        bot.restrictChatMember(chatId, targetId, {
-          can_send_messages: true,
-          can_send_media_messages: true,
-          can_send_polls: true,
-          can_send_other_messages: true,
-          can_add_web_page_previews: true,
-        }).then(() => {
-          bot.sendMessage(
-            chatId,
-            `🎉 ${msg.reply_to_message.from.first_name} از سکوت خارج شد و مجدد قادر به صحبت کردن است!`
-          );
-        });
-      }
-
-      saveWarnings();
-
-      bot.sendMessage(
-        chatId,
-        `✅ اخطار ${msg.reply_to_message.from.first_name} حذف شد! \n📌 اخطار باقی‌مانده: ${warnings[targetId].count || 0}`
-      );
-    } else {
-      bot.sendMessage(chatId, `❌ ${msg.reply_to_message.from.first_name} هیچ اخطاری ندارد!`);
-    }
-  } catch (error) {
-    console.error("Error removing warning:", error);
-    bot.sendMessage(chatId, "❌ مشکلی در حذف اخطار پیش آمد.");
+    bot.sendMessage(
+      chatId,
+      `✅ اخطار ${msg.reply_to_message.from.first_name} حذف شد! \n📌 اخطار باقی‌مانده: ${warnings[targetId].count || 0}`
+    );
+  } else {
+    bot.sendMessage(chatId, `❌ ${msg.reply_to_message.from.first_name} هیچ اخطاری ندارد!`);
   }
 }
 
@@ -411,7 +338,6 @@ bot.on("message", async (msg) => {
   if (text === "گزارش") {
     try {
       const admins = await bot.getChatAdministrators(chatId);
-
       const reportedUser = msg.reply_to_message.from.first_name;
       const reportText = msg.reply_to_message.text || "بدون متن";
       const reportedBy = msg.from.first_name;
@@ -427,10 +353,8 @@ bot.on("message", async (msg) => {
 
       for (const admin of admins) {
         try {
-          if (admin.user.id !== userId) {
-            await bot.sendMessage(admin.user.id, reportMessage);
-            reportSent = true;
-          }
+          await bot.sendMessage(admin.user.id, reportMessage);
+          reportSent = true;
         } catch (error) {
           console.error(`Failed to send report to admin ${admin.user.id}:`, error);
         }
@@ -450,26 +374,12 @@ bot.on("message", async (msg) => {
 
 // Main message handler
 bot.on("message", async (msg) => {
-  const chatId = msg.chat.id;
-  const userId = msg.from.id;
+  handleActivation(msg);
+  handleBadWords(msg);
 
-  // Ensure the bot only works in the allowed group
-  if (!isAllowedGroup(msg.chat)) return;
-
-  // Skip processing if the sender is an admin
-  if (await isAdminUser(chatId, userId)) return;
-
-  try {
-    handleActivation(msg);
-    handleBadWords(msg);
-
-    // Allow only non-admins to use commands
-    if (!(await isAdminUser(chatId, userId))) {
-      handleAdminActions(msg);
-    }
-  } catch (error) {
-    console.error("Error handling message:", error);
-    bot.sendMessage(chatId, "❌ مشکلی در پردازش پیام پیش آمد.");
+  // Allow admins and owners to use commands
+  if (await isAdminUser(msg.chat.id, msg.from.id)) {
+    handleAdminActions(msg);
   }
 });
 
