@@ -52,6 +52,12 @@ function isAllowedGroup(chat) {
   return chat.type === "supergroup" && chat.username === ALLOWED_GROUP.replace("@", "");
 }
 
+// Check if a user is an admin or owner
+async function isAdminUser(chatId, userId) {
+  const chatMember = await bot.getChatMember(chatId, userId);
+  return chatMember.status === "creator" || chatMember.status === "administrator";
+}
+
 // Handle activation
 async function handleActivation(msg) {
   const chatId = msg.chat.id;
@@ -137,12 +143,6 @@ function loadWarnings() {
   }
 }
 
-// Check if a user is an admin or owner
-async function isAdminUser(chatId, userId) {
-  const chatMember = await bot.getChatMember(chatId, userId);
-  return chatMember.status === "creator" || chatMember.status === "administrator";
-}
-
 // Admin actions
 async function handleAdminActions(msg) {
   const chatId = msg.chat.id;
@@ -155,85 +155,47 @@ async function handleAdminActions(msg) {
   const isAdmin = await isAdminUser(chatId, userId);
   if (!isAdmin) return;
 
+  if (await isAdminUser(chatId, targetId) && targetId !== userId) {
+    return bot.sendMessage(chatId, "❌ شما نمی‌توانید ادمین‌ها را بی‌صدا کنید یا اخراج کنید.");
+  }
+
   switch (text) {
     case "اخطار":
       handleWarning(chatId, targetId, msg);
       break;
 
-    case "کیک":  
-    case "صیک":  
-      handleKick(chatId, targetId, msg);  
+    case "کیک":
+    case "صیک":
+      handleKick(chatId, targetId, msg);
       break;
 
-    case "سکوت":  
-      handleMute(chatId, targetId, msg);  
+    case "سکوت":
+      handleMute(chatId, targetId, msg);
       break;
 
-    case "سخنگو":  
-      handleUnmute(chatId, targetId, msg);  
+    case "سخنگو":
+      handleUnmute(chatId, targetId, msg);
       break;
 
-    case "حذف اخطار":  
-      handleRemoveWarning(chatId, targetId, msg);  
+    case "حذف اخطار":
+      handleRemoveWarning(chatId, targetId, msg);
       break;
 
-    case "لیست":  
-      handleCommandList(chatId);  
+    case "لیست":
+      handleCommandList(chatId);
       break;
 
-    default:  
+    default:
       break;
   }
 }
 
-// Handle warnings
-function handleWarning(chatId, targetId, msg) {
-  if (!targetId) return bot.sendMessage(chatId, "❌ لطفا به یک پیام پاسخ دهید.");
-
-  if (!warnings[targetId]) {
-    warnings[targetId] = { count: 0, mutedDueToWarnings: false };
-  }
-
-  if (warnings[targetId].count < 3) {
-    warnings[targetId].count++;
-    saveWarnings();
-
-    bot.sendMessage(  
-      chatId,  
-      `⚠️ ${msg.reply_to_message.from.first_name} توسط ${msg.from.first_name} اخطار گرفت! \n📌 اخطار ${warnings[targetId].count}/3`  
-    );
-
-    if (warnings[targetId].count >= 3) {
-      warnings[targetId].mutedDueToWarnings = true;
-      bot.restrictChatMember(chatId, targetId, { can_send_messages: false });
-      bot.sendMessage(chatId, `🔇 ${msg.reply_to_message.from.first_name} به دلیل 3 اخطار، بی‌صدا شد!`);
-    }
-
-  } else {
-    bot.sendMessage(chatId, `❌ ${msg.reply_to_message.from.first_name} قبلاً 3 اخطار دریافت کرده و بی‌صدا شده است!`);
-  }
-}
-
-// Handle kicking users
-async function handleKick(chatId, targetId, msg) {
-  if (!targetId) return bot.sendMessage(chatId, "❌ لطفا به یک پیام پاسخ دهید.");
-
-  try {
-    await bot.kickChatMember(chatId, targetId);
-    bot.sendMessage(chatId, `🚫 ${msg.reply_to_message.from.first_name} از گروه اخراج شد!`);
-  } catch (error) {
-    console.error("Error kicking user:", error);
-    bot.sendMessage(chatId, "❌ مشکلی در اخراج کاربر پیش آمد.");
-  }
-}
-
-// Handle muting users
+// Prevent muting multiple times
 async function handleMute(chatId, targetId, msg) {
   if (!targetId) return bot.sendMessage(chatId, "❌ لطفا به یک پیام پاسخ دهید.");
 
-  // Check if already muted
   if (warnings[targetId] && warnings[targetId].mutedDueToWarnings) {
-    return bot.sendMessage(chatId, "❌ این کاربر قبلاً بی‌صدا شده است.");
+    return bot.sendMessage(chatId, `❌ ${msg.reply_to_message.from.first_name} قبلاً بی‌صدا شده است.`);
   }
 
   try {
@@ -251,13 +213,12 @@ async function handleMute(chatId, targetId, msg) {
   }
 }
 
-// Handle unmuting users
+// Prevent unmuting a non-muted user
 async function handleUnmute(chatId, targetId, msg) {
   if (!targetId) return bot.sendMessage(chatId, "❌ لطفا به یک پیام پاسخ دهید.");
 
-  // Check if already unmuted
-  if (warnings[targetId] && !warnings[targetId].mutedDueToWarnings) {
-    return bot.sendMessage(chatId, `✅ ${msg.reply_to_message.from.first_name} قبلاً قادر به صحبت است.`);
+  if (!warnings[targetId] || !warnings[targetId].mutedDueToWarnings) {
+    return bot.sendMessage(chatId, `❌ ${msg.reply_to_message.from.first_name} قبلاً بی‌صدا نشده است.`);
   }
 
   try {
@@ -275,6 +236,49 @@ async function handleUnmute(chatId, targetId, msg) {
   }
 }
 
+// Handle warnings
+function handleWarning(chatId, targetId, msg) {
+  if (!targetId) return bot.sendMessage(chatId, "❌ لطفا به یک پیام پاسخ دهید.");
+
+  if (!warnings[targetId]) {
+    warnings[targetId] = { count: 0, mutedDueToWarnings: false };
+  }
+
+  if (warnings[targetId].count < 3) {
+    warnings[targetId].count++;
+    saveWarnings();
+
+    bot.sendMessage(
+      chatId,
+      `⚠️ ${msg.reply_to_message.from.first_name} توسط ${msg.from.first_name} اخطار گرفت! \n📌 اخطار ${warnings[targetId].count}/3`
+    );
+
+    if (warnings[targetId].count >= 3) {
+      warnings[targetId].mutedDueToWarnings = true;
+      bot.restrictChatMember(chatId, targetId, { can_send_messages: false });
+      bot.sendMessage(chatId, `🔇 ${msg.reply_to_message.from.first_name} به دلیل 3 اخطار، بی‌صدا شد!`);
+    }
+  } else {
+    bot.sendMessage(
+      chatId,
+      `❌ ${msg.reply_to_message.from.first_name} قبلاً 3 اخطار دریافت کرده و بی‌صدا شده است!`
+    );
+  }
+}
+
+// Handle kicking users
+async function handleKick(chatId, targetId, msg) {
+  if (!targetId) return bot.sendMessage(chatId, "❌ لطفا به یک پیام پاسخ دهید.");
+
+  try {
+    await bot.kickChatMember(chatId, targetId);
+    bot.sendMessage(chatId, `🚫 ${msg.reply_to_message.from.first_name} از گروه اخراج شد!`);
+  } catch (error) {
+    console.error("Error kicking user:", error);
+    bot.sendMessage(chatId, "❌ مشکلی در اخراج کاربر پیش آمد.");
+  }
+}
+
 // Handle removing warnings
 function handleRemoveWarning(chatId, targetId, msg) {
   if (!targetId) return bot.sendMessage(chatId, "❌ لطفا به یک پیام پاسخ دهید.");
@@ -287,7 +291,6 @@ function handleRemoveWarning(chatId, targetId, msg) {
     warnings[targetId].count--;
 
     if (warnings[targetId].count === 0 && warnings[targetId].mutedDueToWarnings) {
-      // Unmute the user if they were muted due to warnings and now have 0 warnings
       warnings[targetId].mutedDueToWarnings = false;
 
       bot.restrictChatMember(chatId, targetId, {
@@ -312,7 +315,6 @@ function handleRemoveWarning(chatId, targetId, msg) {
       chatId,
       `✅ اخطار ${msg.reply_to_message.from.first_name} حذف شد! \n📌 اخطار باقی‌مانده: ${warnings[targetId].count || 0}`
     );
-
   } else {
     bot.sendMessage(chatId, `❌ ${msg.reply_to_message.from.first_name} هیچ اخطاری ندارد!`);
   }
@@ -325,13 +327,13 @@ function handleCommandList(chatId) {
     `
 📜 لیست دستورات ربات:
 
-1️⃣ **روشن** - فعال‌سازی ربات توسط صاحب گروه.  
-2️⃣ **اخطار** - اخطار دادن به کاربر.  
-3️⃣ **کیک/صیک** - اخراج کاربر از گروه.  
-4️⃣ **سکوت** - بی‌صدا کردن کاربر.  
-5️⃣ **سخنگو** - بازگرداندن صدای کاربر.  
-6️⃣ **حذف اخطار** - حذف یک اخطار از کاربر.  
-7️⃣ **گزارش** - گزارش دادن پیام به ادمین‌ها و صاحب گروه.  
+1️⃣ **روشن** - فعال‌سازی ربات توسط صاحب گروه.
+2️⃣ **اخطار** - اخطار دادن به کاربر.
+3️⃣ **کیک/صیک** - اخراج کاربر از گروه.
+4️⃣ **سکوت** - بی‌صدا کردن کاربر.
+5️⃣ **سخنگو** - بازگرداندن صدای کاربر.
+6️⃣ **حذف اخطار** - حذف یک اخطار از کاربر.
+7️⃣ **گزارش** - گزارش دادن پیام به ادمین‌ها و صاحب گروه.
 `
   );
 }
@@ -351,12 +353,12 @@ bot.on("message", async (msg) => {
       const reportText = msg.reply_to_message.text || "بدون متن";
       const reportedBy = msg.from.first_name;
 
-      const reportMessage = `
+      const reportMessage = `  
     🚨 **گزارش جدید**  
     📌 **گزارش دهنده**: ${reportedBy}  
     📝 **گزارش شده**: ${reportedUser}  
     📄 **متن گزارش**: ${reportText}  
-    `;
+  `;
 
       let reportSent = false;
 
