@@ -97,7 +97,7 @@ async function isAdminUser(chatId, userId) {
     return chatMember.status === "creator" || chatMember.status === "administrator";
   } catch (error) {
     console.error("Error checking admin status:", error);
-    return false;
+    return false; // Default to non-admin if an error occurs
   }
 }
 
@@ -107,16 +107,23 @@ async function handleActivation(msg) {
   const userId = msg.from.id;
   const text = msg.text;
 
-  if (!isAllowedGroup(msg.chat)) return;
+  if (!isAllowedGroup(msg.chat)) {
+    return bot.sendMessage(chatId, "❌ ربات فقط در گروه مجاز کار می‌کند.");
+  }
 
   try {
     const chatMember = await bot.getChatMember(chatId, userId);
-    const isOwner = chatMember.status === "creator";
 
-    if (text === "روشن" && isOwner) {
+    // Ensure the user is the owner of the group
+    if (chatMember.status !== "creator") {
+      return bot.sendMessage(chatId, "❌ تنها صاحب گروه می‌تواند ربات را فعال کند.");
+    }
+
+    if (text === "روشن") {
       if (data.active) {
         return bot.sendMessage(chatId, "⚠️ ربات قبلا فعال شده است.");
       }
+
       data.active = true;
       saveData();
       return bot.sendMessage(chatId, "✅ ربات با موفقیت فعال شد!");
@@ -221,6 +228,7 @@ async function handleAdminActions(msg) {
     }
   } catch (error) {
     console.error("Error handling admin actions:", error);
+    bot.sendMessage(chatId, "❌ مشکلی در اجرای دستور پیش آمد.");
   }
 }
 
@@ -461,6 +469,7 @@ bot.on("message", async (msg) => {
     }
   } catch (error) {
     console.error("Error handling message:", error);
+    bot.sendMessage(chatId, "❌ مشکلی در پردازش پیام پیش آمد.");
   }
 });
 
