@@ -19,6 +19,7 @@ let data = {
 
 // Warnings tracking (separate from data object)
 let warnings = {};
+let mutedUsers = {}; // Track muted users to prevent duplicate mutes
 
 // Check if data.json exists, otherwise create it
 if (fs.existsSync(DATA_FILE)) {
@@ -73,7 +74,7 @@ async function handleActivation(msg) {
   }
 }
 
-// Handle offensive words
+// Handle bad words
 async function handleBadWords(msg) {
   const chatId = msg.chat.id;
   const userId = msg.from.id;
@@ -233,6 +234,10 @@ async function handleKick(chatId, targetId, msg) {
 async function handleMute(chatId, targetId, msg) {
   if (!targetId) return bot.sendMessage(chatId, "❌ لطفا به یک پیام پاسخ دهید.");
 
+  if (mutedUsers[targetId]) {
+    return bot.sendMessage(chatId, `❌ ${msg.reply_to_message.from.first_name} قبلاً بی‌صدا شده است!`);
+  }
+
   try {
     await bot.restrictChatMember(chatId, targetId, {
       can_send_messages: false,
@@ -241,6 +246,7 @@ async function handleMute(chatId, targetId, msg) {
       can_send_other_messages: false,
       can_add_web_page_previews: false
     });
+    mutedUsers[targetId] = true; // Mark as muted
     bot.sendMessage(chatId, `🔇 ${msg.reply_to_message.from.first_name} بی‌صدا شد!`);
   } catch (error) {
     console.error("Error muting user:", error);
@@ -260,6 +266,7 @@ async function handleUnmute(chatId, targetId, msg) {
       can_send_other_messages: true,
       can_add_web_page_previews: true
     });
+    mutedUsers[targetId] = false; // Unmark as muted
     bot.sendMessage(chatId, `📣 ${msg.reply_to_message.from.first_name} دوباره قادر به صحبت کردن شد! 🎉`);
   } catch (error) {
     console.error("Error unmuting user:", error);
