@@ -6,7 +6,7 @@ const TOKEN = "7948201057:AAGdjlJ7XGdObnxlIUpXfXqOXUrCILApxKE";
 const bot = new TelegramBot(TOKEN, { polling: true });
 
 // Group handle
-const ALLOWED_GROUP = "@Roblocksx";
+const ALLOWED_GROUP = "@Jack_pirate_illager";
 
 // Load data from JSON file
 const DATA_FILE = "data.json";
@@ -69,7 +69,7 @@ async function handleActivation(msg) {
     }
     data.active = true;
     saveData();
-    return bot.sendMessage(chatId, "✅ ربات با موفقیت فعال شد!");
+    return bot.sendMessage(chatId, "✅ ربات با موفقیت فعال شد!\nربات کاستوم + ورژن انتشاری ۱.۱\nبرای شروع از کلمه لیست استفاده کنید\nپیشنهاد و انتقادا: @zonercm 🔔");
   }
 }
 
