@@ -52,12 +52,6 @@ function isAllowedGroup(chat) {
   return chat.type === "supergroup" && chat.username === ALLOWED_GROUP.replace("@", "");
 }
 
-// Check if a user is an admin or owner
-async function isAdminUser(chatId, userId) {
-  const chatMember = await bot.getChatMember(chatId, userId);
-  return chatMember.status === "creator" || chatMember.status === "administrator";
-}
-
 // Handle activation
 async function handleActivation(msg) {
   const chatId = msg.chat.id;
@@ -143,6 +137,12 @@ function loadWarnings() {
   }
 }
 
+// Check if a user is an admin or owner
+async function isAdminUser(chatId, userId) {
+  const chatMember = await bot.getChatMember(chatId, userId);
+  return chatMember.status === "creator" || chatMember.status === "administrator";
+}
+
 // Admin actions
 async function handleAdminActions(msg) {
   const chatId = msg.chat.id;
@@ -154,10 +154,6 @@ async function handleAdminActions(msg) {
 
   const isAdmin = await isAdminUser(chatId, userId);
   if (!isAdmin) return;
-
-  if (await isAdminUser(chatId, targetId) && targetId !== userId) {
-    return bot.sendMessage(chatId, "❌ شما نمی‌توانید ادمین‌ها را بی‌صدا کنید یا اخراج کنید.");
-  }
 
   switch (text) {
     case "اخطار":
@@ -187,58 +183,6 @@ async function handleAdminActions(msg) {
 
     default:
       break;
-  }
-}
-
-// Prevent muting multiple times (anti-row)
-async function handleMute(chatId, targetId, msg) {
-  if (!targetId) return bot.sendMessage(chatId, "❌ لطفا به یک پیام پاسخ دهید.");
-
-  // Check if already muted
-  if (warnings[targetId] && warnings[targetId].mutedDueToWarnings) {
-    return bot.sendMessage(chatId, `❌ ${msg.reply_to_message.from.first_name} قبلاً بی‌صدا شده است.`);
-  }
-
-  try {
-    await bot.restrictChatMember(chatId, targetId, {
-      can_send_messages: false,
-      can_send_media_messages: false,
-      can_send_polls: false,
-      can_send_other_messages: false,
-      can_add_web_page_previews: false
-    });
-    bot.sendMessage(chatId, `🔇 ${msg.reply_to_message.from.first_name} بی‌صدا شد!`);
-    warnings[targetId].mutedDueToWarnings = true; // Mark as muted
-    saveWarnings();
-  } catch (error) {
-    console.error("Error muting user:", error);
-    bot.sendMessage(chatId, "❌ مشکلی در بی‌صدا کردن کاربر پیش آمد.");
-  }
-}
-
-// Prevent unmuting a non-muted user (anti-row)
-async function handleUnmute(chatId, targetId, msg) {
-  if (!targetId) return bot.sendMessage(chatId, "❌ لطفا به یک پیام پاسخ دهید.");
-
-  // Check if already unmuted
-  if (!warnings[targetId] || !warnings[targetId].mutedDueToWarnings) {
-    return bot.sendMessage(chatId, `❌ ${msg.reply_to_message.from.first_name} قبلاً بی‌صدا نشده است.`);
-  }
-
-  try {
-    await bot.restrictChatMember(chatId, targetId, {
-      can_send_messages: true,
-      can_send_media_messages: true,
-      can_send_polls: true,
-      can_send_other_messages: true,
-      can_add_web_page_previews: true
-    });
-    bot.sendMessage(chatId, `📣 ${msg.reply_to_message.from.first_name} دوباره قادر به صحبت کردن شد! 🎉`);
-    warnings[targetId].mutedDueToWarnings = false; // Mark as unmuted
-    saveWarnings();
-  } catch (error) {
-    console.error("Error unmuting user:", error);
-    bot.sendMessage(chatId, "❌ مشکلی در بازگرداندن صدای کاربر پیش آمد.");
   }
 }
 
@@ -285,6 +229,57 @@ async function handleKick(chatId, targetId, msg) {
   }
 }
 
+// Handle muting users
+async function handleMute(chatId, targetId, msg) {
+  if (!targetId) return bot.sendMessage(chatId, "❌ لطفا به یک پیام پاسخ دهید.");
+  const isAdmin = await isAdminUser(chatId, targetId);
+
+  // Admins should not be muted
+  if (isAdmin) {
+    bot.sendMessage(chatId, "❌ ادمین‌ها نمی‌توانند بی‌صدا شوند.");
+    return;
+  }
+
+  try {
+    await bot.restrictChatMember(chatId, targetId, {
+      can_send_messages: false,
+      can_send_media_messages: false,
+      can_send_polls: false,
+      can_send_other_messages: false,
+      can_add_web_page_previews: false
+    });
+    bot.sendMessage(chatId, `🔇 ${msg.reply_to_message.from.first_name} بی‌صدا شد!`);
+  } catch (error) {
+    console.error("Error muting user:", error);
+    bot.sendMessage(chatId, "❌ مشکلی در بی‌صدا کردن کاربر پیش آمد.");
+  }
+}
+
+// Handle unmuting users
+async function handleUnmute(chatId, targetId, msg) {
+  if (!targetId) return bot.sendMessage(chatId, "❌ لطفا به یک پیام پاسخ دهید.");
+  const isAdmin = await isAdminUser(chatId, targetId);
+
+  if (isAdmin) {
+    bot.sendMessage(chatId, "❌ ادمین‌ها نمی‌توانند صدای خود را بازگردانند.");
+    return;
+  }
+
+  try {
+    await bot.restrictChatMember(chatId, targetId, {
+      can_send_messages: true,
+      can_send_media_messages: true,
+      can_send_polls: true,
+      can_send_other_messages: true,
+      can_add_web_page_previews: true
+    });
+    bot.sendMessage(chatId, `📣 ${msg.reply_to_message.from.first_name} دوباره قادر به صحبت کردن شد! 🎉`);
+  } catch (error) {
+    console.error("Error unmuting user:", error);
+    bot.sendMessage(chatId, "❌ مشکلی در بازگرداندن صدای کاربر پیش آمد.");
+  }
+}
+
 // Handle removing warnings
 function handleRemoveWarning(chatId, targetId, msg) {
   if (!targetId) return bot.sendMessage(chatId, "❌ لطفا به یک پیام پاسخ دهید.");
@@ -297,6 +292,7 @@ function handleRemoveWarning(chatId, targetId, msg) {
     warnings[targetId].count--;
 
     if (warnings[targetId].count === 0 && warnings[targetId].mutedDueToWarnings) {
+      // Unmute the user if they were muted due to warnings and now have 0 warnings
       warnings[targetId].mutedDueToWarnings = false;
 
       bot.restrictChatMember(chatId, targetId, {
@@ -333,13 +329,13 @@ function handleCommandList(chatId) {
     `
 📜 لیست دستورات ربات:
 
-1️⃣ **روشن** - فعال‌سازی ربات توسط صاحب گروه.
-2️⃣ **اخطار** - اخطار دادن به کاربر.
-3️⃣ **کیک/صیک** - اخراج کاربر از گروه.
-4️⃣ **سکوت** - بی‌صدا کردن کاربر.
-5️⃣ **سخنگو** - بازگرداندن صدای کاربر.
-6️⃣ **حذف اخطار** - حذف یک اخطار از کاربر.
-7️⃣ **گزارش** - گزارش دادن پیام به ادمین‌ها و صاحب گروه.
+1️⃣ روشن - فعال‌سازی ربات توسط صاحب گروه.
+2️⃣ اخطار - اخطار دادن به کاربر.
+3️⃣ کیک/صیک - اخراج کاربر از گروه.
+4️⃣ سکوت - بی‌صدا کردن کاربر.
+5️⃣ سخنگو - بازگرداندن صدای کاربر.
+6️⃣ حذف اخطار - حذف یک اخطار از کاربر.
+7️⃣ گزارش - گزارش دادن پیام به ادمین‌ها و صاحب گروه.
 `
   );
 }
@@ -359,12 +355,7 @@ bot.on("message", async (msg) => {
       const reportText = msg.reply_to_message.text || "بدون متن";
       const reportedBy = msg.from.first_name;
 
-      const reportMessage = `  
-    🚨 **گزارش جدید**  
-    📌 **گزارش دهنده**: ${reportedBy}  
-    📝 **گزارش شده**: ${reportedUser}  
-    📄 **متن گزارش**: ${reportText}  
-  `;
+      const reportMessage = `🚨 گزارش جدید     📌 گزارش دهنده: ${reportedBy}     📝 گزارش شده: ${reportedUser}     📄 متن گزارش: ${reportText}    `;
 
       let reportSent = false;
 
@@ -387,3 +378,18 @@ bot.on("message", async (msg) => {
       bot.sendMessage(chatId, "❌ مشکلی در ارسال گزارش پیش آمد.");
     }
   }
+});
+
+// Main message handler
+bot.on("message", async (msg) => {
+  handleActivation(msg);
+  handleBadWords(msg);
+
+  // Allow admins and owners to use commands
+  if (await isAdminUser(msg.chat.id, msg.from.id)) {
+    handleAdminActions(msg);
+  }
+});
+
+// Load warnings on startup
+loadWarnings();
