@@ -190,10 +190,11 @@ async function handleAdminActions(msg) {
   }
 }
 
-// Prevent muting multiple times
+// Prevent muting multiple times (anti-row)
 async function handleMute(chatId, targetId, msg) {
   if (!targetId) return bot.sendMessage(chatId, "❌ لطفا به یک پیام پاسخ دهید.");
 
+  // Check if already muted
   if (warnings[targetId] && warnings[targetId].mutedDueToWarnings) {
     return bot.sendMessage(chatId, `❌ ${msg.reply_to_message.from.first_name} قبلاً بی‌صدا شده است.`);
   }
@@ -207,16 +208,19 @@ async function handleMute(chatId, targetId, msg) {
       can_add_web_page_previews: false
     });
     bot.sendMessage(chatId, `🔇 ${msg.reply_to_message.from.first_name} بی‌صدا شد!`);
+    warnings[targetId].mutedDueToWarnings = true; // Mark as muted
+    saveWarnings();
   } catch (error) {
     console.error("Error muting user:", error);
     bot.sendMessage(chatId, "❌ مشکلی در بی‌صدا کردن کاربر پیش آمد.");
   }
 }
 
-// Prevent unmuting a non-muted user
+// Prevent unmuting a non-muted user (anti-row)
 async function handleUnmute(chatId, targetId, msg) {
   if (!targetId) return bot.sendMessage(chatId, "❌ لطفا به یک پیام پاسخ دهید.");
 
+  // Check if already unmuted
   if (!warnings[targetId] || !warnings[targetId].mutedDueToWarnings) {
     return bot.sendMessage(chatId, `❌ ${msg.reply_to_message.from.first_name} قبلاً بی‌صدا نشده است.`);
   }
@@ -230,6 +234,8 @@ async function handleUnmute(chatId, targetId, msg) {
       can_add_web_page_previews: true
     });
     bot.sendMessage(chatId, `📣 ${msg.reply_to_message.from.first_name} دوباره قادر به صحبت کردن شد! 🎉`);
+    warnings[targetId].mutedDueToWarnings = false; // Mark as unmuted
+    saveWarnings();
   } catch (error) {
     console.error("Error unmuting user:", error);
     bot.sendMessage(chatId, "❌ مشکلی در بازگرداندن صدای کاربر پیش آمد.");
@@ -381,18 +387,3 @@ bot.on("message", async (msg) => {
       bot.sendMessage(chatId, "❌ مشکلی در ارسال گزارش پیش آمد.");
     }
   }
-});
-
-// Main message handler
-bot.on("message", async (msg) => {
-  handleActivation(msg);
-  handleBadWords(msg);
-
-  // Allow admins and owners to use commands
-  if (await isAdminUser(msg.chat.id, msg.from.id)) {
-    handleAdminActions(msg);
-  }
-});
-
-// Load warnings on startup
-loadWarnings();
