@@ -14,9 +14,11 @@ const DATA_FILE = "data.json";
 // Initialize data structure if `data.json` doesn't exist
 let data = {
   active: false,
-  users: {}, // Store user-specific data (warnings, muted status)
   admins: {}
 };
+
+// Warnings tracking (separate from data object)
+let warnings = {};
 
 // Check if data.json exists, otherwise create it
 if (fs.existsSync(DATA_FILE)) {
@@ -24,7 +26,7 @@ if (fs.existsSync(DATA_FILE)) {
     data = JSON.parse(fs.readFileSync(DATA_FILE, "utf8"));
   } catch (error) {
     console.error("Error reading data.json:", error);
-    data = { active: false, users: {}, admins: {} }; // Reset data on parse failure
+    data = { active: false, admins: {} }; // Reset data on parse failure
   }
 } else {
   saveData();
@@ -85,21 +87,21 @@ async function handleBadWords(msg) {
   if (badWords.some(word => text.includes(word))) {
     bot.deleteMessage(chatId, msg.message_id);
 
-    if (!data.users[userId]) {
-      data.users[userId] = { warnings: 0, mutedDueToWarnings: false };
+    if (!warnings[userId]) {
+      warnings[userId] = { count: 0, mutedDueToWarnings: false };
     }
 
-    if (data.users[userId].warnings < 3) {
-      data.users[userId].warnings++;
-      saveData();
+    if (warnings[userId].count < 3) {
+      warnings[userId].count++;
+      saveWarnings();
 
       bot.sendMessage(
         chatId,
-        `⚠️ ${msg.from.first_name}، پیام شما حذف شد! \n📌 اخطار ${data.users[userId].warnings}/3`
+        `⚠️ ${msg.from.first_name}، پیام شما حذف شد! \n📌 اخطار ${warnings[userId].count}/3`
       );
 
-      if (data.users[userId].warnings >= 3) {
-        data.users[userId].mutedDueToWarnings = true;
+      if (warnings[userId].count >= 3) {
+        warnings[userId].mutedDueToWarnings = true;
         await bot.restrictChatMember(chatId, userId, { can_send_messages: false });
         bot.sendMessage(chatId, `🔇 ${msg.from.first_name} به دلیل 3 اخطار، بی‌صدا شد!`);
       }
@@ -109,6 +111,29 @@ async function handleBadWords(msg) {
         `❌ ${msg.from.first_name} قبلاً 3 اخطار دریافت کرده و بی‌صدا شده است!`
       );
     }
+  }
+}
+
+// Save warnings to a separate file
+function saveWarnings() {
+  try {
+    fs.writeFileSync("warnings.json", JSON.stringify(warnings, null, 2), "utf8");
+  } catch (error) {
+    console.error("Error saving warnings.json:", error);
+  }
+}
+
+// Load warnings from a separate file
+function loadWarnings() {
+  try {
+    if (fs.existsSync("warnings.json")) {
+      warnings = JSON.parse(fs.readFileSync("warnings.json", "utf8"));
+    } else {
+      warnings = {};
+    }
+  } catch (error) {
+    console.error("Error loading warnings.json:", error);
+    warnings = {};
   }
 }
 
@@ -165,21 +190,21 @@ async function handleAdminActions(msg) {
 function handleWarning(chatId, targetId, msg) {
   if (!targetId) return bot.sendMessage(chatId, "❌ لطفا به یک پیام پاسخ دهید.");
 
-  if (!data.users[targetId]) {
-    data.users[targetId] = { warnings: 0, mutedDueToWarnings: false };
+  if (!warnings[targetId]) {
+    warnings[targetId] = { count: 0, mutedDueToWarnings: false };
   }
 
-  if (data.users[targetId].warnings < 3) {
-    data.users[targetId].warnings++;
-    saveData();
+  if (warnings[targetId].count < 3) {
+    warnings[targetId].count++;
+    saveWarnings();
 
     bot.sendMessage(
       chatId,
-      `⚠️ ${msg.reply_to_message.from.first_name} توسط ${msg.from.first_name} اخطار گرفت! \n📌 اخطار ${data.users[targetId].warnings}/3`
+      `⚠️ ${msg.reply_to_message.from.first_name} توسط ${msg.from.first_name} اخطار گرفت! \n📌 اخطار ${warnings[targetId].count}/3`
     );
 
-    if (data.users[targetId].warnings >= 3) {
-      data.users[targetId].mutedDueToWarnings = true;
+    if (warnings[targetId].count >= 3) {
+      warnings[targetId].mutedDueToWarnings = true;
       bot.restrictChatMember(chatId, targetId, { can_send_messages: false });
       bot.sendMessage(chatId, `🔇 ${msg.reply_to_message.from.first_name} به دلیل 3 اخطار، بی‌صدا شد!`);
     }
@@ -246,16 +271,16 @@ async function handleUnmute(chatId, targetId, msg) {
 function handleRemoveWarning(chatId, targetId, msg) {
   if (!targetId) return bot.sendMessage(chatId, "❌ لطفا به یک پیام پاسخ دهید.");
 
-  if (!data.users[targetId]) {
+  if (!warnings[targetId]) {
     return bot.sendMessage(chatId, `❌ ${msg.reply_to_message.from.first_name} هیچ اخطاری ندارد!`);
   }
 
-  if (data.users[targetId].warnings > 0) {
-    data.users[targetId].warnings--;
+  if (warnings[targetId].count > 0) {
+    warnings[targetId].count--;
 
-    if (data.users[targetId].warnings === 0 && data.users[targetId].mutedDueToWarnings) {
+    if (warnings[targetId].count === 0 && warnings[targetId].mutedDueToWarnings) {
       // Unmute the user if they were muted due to warnings and now have 0 warnings
-      data.users[targetId].mutedDueToWarnings = false;
+      warnings[targetId].mutedDueToWarnings = false;
 
       bot.restrictChatMember(chatId, targetId, {
         can_send_messages: true,
@@ -273,11 +298,11 @@ function handleRemoveWarning(chatId, targetId, msg) {
       });
     }
 
-    saveData();
+    saveWarnings();
 
     bot.sendMessage(
       chatId,
-      `✅ اخطار ${msg.reply_to_message.from.first_name} حذف شد! \n📌 اخطار باقی‌مانده: ${data.users[targetId].warnings || 0}`
+      `✅ اخطار ${msg.reply_to_message.from.first_name} حذف شد! \n📌 اخطار باقی‌مانده: ${warnings[targetId].count || 0}`
     );
   } else {
     bot.sendMessage(chatId, `❌ ${msg.reply_to_message.from.first_name} هیچ اخطاری ندارد!`);
@@ -357,3 +382,6 @@ bot.on("message", async (msg) => {
     handleAdminActions(msg);
   }
 });
+
+// Load warnings on startup
+loadWarnings();
