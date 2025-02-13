@@ -98,7 +98,7 @@ async function handleActivation(msg) {
     }
     data.active = true;
     saveData();
-    return bot.sendMessage(chatId, "✅ ربات با موفقیت فعال شد!\nپیشنهاد و انتقادات @zonercm\nورژن کاستم / ورژن شخصی\nنسخه انتشاری: 1.1\nبرای دیدن کاربرد ربات از *لیست* استفاده کنید.");
+    return bot.sendMessage(chatId, "✅ ربات با موفقیت فعال شد!");
   }
 }
 
