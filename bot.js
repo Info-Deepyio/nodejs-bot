@@ -14,7 +14,7 @@ const DATA_FILE = "data.json";
 // Initialize data structure if `data.json` doesn't exist
 let data = {
   active: false,
-  admins: {}
+  admins: {},
 };
 
 // Warnings tracking (separate from data object)
@@ -66,8 +66,23 @@ function loadWarnings() {
 
 // Offensive words list
 const badWords = [
-  "کیر", "کص", "کون", "کونده", "کصده", "جند", "کصمادر", "اوبی", "اوبنه ای",
-  "تاقال", "تاقار", "حروم", "جاکش", "حرومی", "پدرسگ", "مادرجنده", "تخم سگ"
+  "کیر",
+  "کص",
+  "کون",
+  "کونده",
+  "کصده",
+  "جند",
+  "کصمادر",
+  "اوبی",
+  "اوبنه ای",
+  "تاقال",
+  "تاقار",
+  "حروم",
+  "جاکش",
+  "حرومی",
+  "پدرسگ",
+  "مادرجنده",
+  "تخم سگ",
 ];
 
 // Function to check if the bot is in the allowed group
@@ -113,7 +128,7 @@ async function handleBadWords(msg) {
   const isAdmin = await isAdminUser(chatId, userId);
   if (isAdmin) return; // Admins are immune to offensive word detection
 
-  if (badWords.some(word => text.includes(word))) {
+  if (badWords.some((word) => text.includes(word))) {
     bot.deleteMessage(chatId, msg.message_id);
 
     if (!warnings[userId]) {
@@ -259,7 +274,7 @@ async function handleMute(chatId, targetId, msg) {
       can_send_media_messages: false,
       can_send_polls: false,
       can_send_other_messages: false,
-      can_add_web_page_previews: false
+      can_add_web_page_previews: false,
     });
     bot.sendMessage(chatId, `🔇 ${msg.reply_to_message.from.first_name} بی‌صدا شد!`);
   } catch (error) {
@@ -278,7 +293,7 @@ async function handleUnmute(chatId, targetId, msg) {
       can_send_media_messages: true,
       can_send_polls: true,
       can_send_other_messages: true,
-      can_add_web_page_previews: true
+      can_add_web_page_previews: true,
     });
     bot.sendMessage(chatId, `📣 ${msg.reply_to_message.from.first_name} دوباره قادر به صحبت کردن شد! 🎉`);
   } catch (error) {
@@ -311,14 +326,12 @@ function handleRemoveWarning(chatId, targetId, msg) {
         can_send_media_messages: true,
         can_send_polls: true,
         can_send_other_messages: true,
-        can_add_web_page_previews: true
+        can_add_web_page_previews: true,
       }).then(() => {
         bot.sendMessage(
           chatId,
           `🎉 ${msg.reply_to_message.from.first_name} از سکوت خارج شد و مجدد قادر به صحبت کردن است!`
         );
-      }).catch((error) => {
-        console.error("Error auto-unmuting user:", error);
       });
     }
 
@@ -367,6 +380,7 @@ bot.on("message", async (msg) => {
   if (text === "گزارش") {
     try {
       const admins = await bot.getChatAdministrators(chatId);
+
       const reportedUser = msg.reply_to_message.from.first_name;
       const reportText = msg.reply_to_message.text || "بدون متن";
       const reportedBy = msg.from.first_name;
@@ -382,7 +396,7 @@ bot.on("message", async (msg) => {
 
       for (const admin of admins) {
         try {
-          if (admin.user.id !== userId) { // Don't send report back to the reporting admin
+          if (admin.user.id !== userId) {
             await bot.sendMessage(admin.user.id, reportMessage);
             reportSent = true;
           }
