@@ -41,6 +41,29 @@ function saveData() {
   }
 }
 
+// Save warnings to a separate file
+function saveWarnings() {
+  try {
+    fs.writeFileSync("warnings.json", JSON.stringify(warnings, null, 2), "utf8");
+  } catch (error) {
+    console.error("Error saving warnings.json:", error);
+  }
+}
+
+// Load warnings from a separate file
+function loadWarnings() {
+  try {
+    if (fs.existsSync("warnings.json")) {
+      warnings = JSON.parse(fs.readFileSync("warnings.json", "utf8"));
+    } else {
+      warnings = {};
+    }
+  } catch (error) {
+    console.error("Error loading warnings.json:", error);
+    warnings = {};
+  }
+}
+
 // Offensive words list
 const badWords = [
   "کیر", "کص", "کون", "کونده", "کصده", "جند", "کصمادر", "اوبی", "اوبنه ای",
@@ -50,6 +73,12 @@ const badWords = [
 // Function to check if the bot is in the allowed group
 function isAllowedGroup(chat) {
   return chat.type === "supergroup" && chat.username === ALLOWED_GROUP.replace("@", "");
+}
+
+// Check if a user is an admin or owner
+async function isAdminUser(chatId, userId) {
+  const chatMember = await bot.getChatMember(chatId, userId);
+  return chatMember.status === "creator" || chatMember.status === "administrator";
 }
 
 // Handle activation
@@ -69,7 +98,7 @@ async function handleActivation(msg) {
     }
     data.active = true;
     saveData();
-    return bot.sendMessage(chatId, "✅ ربات با موفقیت فعال شد!");
+    return bot.sendMessage(chatId, "✅ ربات با موفقیت فعال شد!\nپیشنهاد و انتقادات @zonercm\nورژن کاستم / ورژن شخصی\nنسخه انتشاری: 1.1\nبرای دیدن کاربرد ربات از *لیست* استفاده کنید.");
   }
 }
 
@@ -82,7 +111,7 @@ async function handleBadWords(msg) {
   if (!data.active || !isAllowedGroup(msg.chat)) return;
 
   const isAdmin = await isAdminUser(chatId, userId);
-  if (isAdmin) return; // Admins are immune
+  if (isAdmin) return; // Admins are immune to offensive word detection
 
   if (badWords.some(word => text.includes(word))) {
     bot.deleteMessage(chatId, msg.message_id);
@@ -114,35 +143,6 @@ async function handleBadWords(msg) {
   }
 }
 
-// Save warnings to a separate file
-function saveWarnings() {
-  try {
-    fs.writeFileSync("warnings.json", JSON.stringify(warnings, null, 2), "utf8");
-  } catch (error) {
-    console.error("Error saving warnings.json:", error);
-  }
-}
-
-// Load warnings from a separate file
-function loadWarnings() {
-  try {
-    if (fs.existsSync("warnings.json")) {
-      warnings = JSON.parse(fs.readFileSync("warnings.json", "utf8"));
-    } else {
-      warnings = {};
-    }
-  } catch (error) {
-    console.error("Error loading warnings.json:", error);
-    warnings = {};
-  }
-}
-
-// Check if a user is an admin or owner
-async function isAdminUser(chatId, userId) {
-  const chatMember = await bot.getChatMember(chatId, userId);
-  return chatMember.status === "creator" || chatMember.status === "administrator";
-}
-
 // Admin actions
 async function handleAdminActions(msg) {
   const chatId = msg.chat.id;
@@ -154,6 +154,11 @@ async function handleAdminActions(msg) {
 
   const isAdmin = await isAdminUser(chatId, userId);
   if (!isAdmin) return;
+
+  // Ensure the target is not an admin
+  if (await isAdminUser(chatId, targetId)) {
+    return bot.sendMessage(chatId, "❌ نمی‌توانید روی ادمین‌ها عملیات انجام دهید!");
+  }
 
   switch (text) {
     case "اخطار":
@@ -190,6 +195,11 @@ async function handleAdminActions(msg) {
 function handleWarning(chatId, targetId, msg) {
   if (!targetId) return bot.sendMessage(chatId, "❌ لطفا به یک پیام پاسخ دهید.");
 
+  // Ensure the target is not an admin
+  if (await isAdminUser(chatId, targetId)) {
+    return bot.sendMessage(chatId, "❌ نمی‌توانید به ادمین‌ها اخطار دهید!");
+  }
+
   if (!warnings[targetId]) {
     warnings[targetId] = { count: 0, mutedDueToWarnings: false };
   }
@@ -220,6 +230,11 @@ function handleWarning(chatId, targetId, msg) {
 async function handleKick(chatId, targetId, msg) {
   if (!targetId) return bot.sendMessage(chatId, "❌ لطفا به یک پیام پاسخ دهید.");
 
+  // Ensure the target is not an admin
+  if (await isAdminUser(chatId, targetId)) {
+    return bot.sendMessage(chatId, "❌ نمی‌توانید ادمین‌ها را اخراج کنید!");
+  }
+
   try {
     await bot.kickChatMember(chatId, targetId);
     bot.sendMessage(chatId, `🚫 ${msg.reply_to_message.from.first_name} از گروه اخراج شد!`);
@@ -232,6 +247,11 @@ async function handleKick(chatId, targetId, msg) {
 // Handle muting users
 async function handleMute(chatId, targetId, msg) {
   if (!targetId) return bot.sendMessage(chatId, "❌ لطفا به یک پیام پاسخ دهید.");
+
+  // Ensure the target is not an admin
+  if (await isAdminUser(chatId, targetId)) {
+    return bot.sendMessage(chatId, "❌ نمی‌توانید ادمین‌ها را بی‌صدا کنید!");
+  }
 
   try {
     await bot.restrictChatMember(chatId, targetId, {
@@ -271,6 +291,11 @@ async function handleUnmute(chatId, targetId, msg) {
 function handleRemoveWarning(chatId, targetId, msg) {
   if (!targetId) return bot.sendMessage(chatId, "❌ لطفا به یک پیام پاسخ دهید.");
 
+  // Ensure the target is not an admin
+  if (await isAdminUser(chatId, targetId)) {
+    return bot.sendMessage(chatId, "❌ نمی‌توانید اخطار ادمین‌ها را حذف کنید!");
+  }
+
   if (!warnings[targetId]) {
     return bot.sendMessage(chatId, `❌ ${msg.reply_to_message.from.first_name} هیچ اخطاری ندارد!`);
   }
@@ -279,7 +304,6 @@ function handleRemoveWarning(chatId, targetId, msg) {
     warnings[targetId].count--;
 
     if (warnings[targetId].count === 0 && warnings[targetId].mutedDueToWarnings) {
-      // Unmute the user if they were muted due to warnings and now have 0 warnings
       warnings[targetId].mutedDueToWarnings = false;
 
       bot.restrictChatMember(chatId, targetId, {
@@ -335,6 +359,11 @@ bot.on("message", async (msg) => {
   const userId = msg.from.id;
   const text = msg.text;
 
+  // Ensure the reported user is not an admin
+  if (await isAdminUser(chatId, msg.reply_to_message.from.id)) {
+    return bot.sendMessage(chatId, "❌ نمی‌توانید ادمین‌ها را گزارش کنید!");
+  }
+
   if (text === "گزارش") {
     try {
       const admins = await bot.getChatAdministrators(chatId);
@@ -353,8 +382,10 @@ bot.on("message", async (msg) => {
 
       for (const admin of admins) {
         try {
-          await bot.sendMessage(admin.user.id, reportMessage);
-          reportSent = true;
+          if (admin.user.id !== userId) { // Don't send report back to the reporting admin
+            await bot.sendMessage(admin.user.id, reportMessage);
+            reportSent = true;
+          }
         } catch (error) {
           console.error(`Failed to send report to admin ${admin.user.id}:`, error);
         }
@@ -374,11 +405,20 @@ bot.on("message", async (msg) => {
 
 // Main message handler
 bot.on("message", async (msg) => {
+  const chatId = msg.chat.id;
+  const userId = msg.from.id;
+
+  // Ensure the bot only works in the allowed group
+  if (!isAllowedGroup(msg.chat)) return;
+
+  // Skip processing if the sender is an admin
+  if (await isAdminUser(chatId, userId)) return;
+
   handleActivation(msg);
   handleBadWords(msg);
 
-  // Allow admins and owners to use commands
-  if (await isAdminUser(msg.chat.id, msg.from.id)) {
+  // Allow only non-admins to use commands
+  if (!(await isAdminUser(chatId, userId))) {
     handleAdminActions(msg);
   }
 });
