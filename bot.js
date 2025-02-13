@@ -19,7 +19,6 @@ let data = {
 
 // Warnings tracking (separate from data object)
 let warnings = {};
-let mutedUsers = {}; // Track muted users to prevent duplicate mutes
 
 // Check if data.json exists, otherwise create it
 if (fs.existsSync(DATA_FILE)) {
@@ -82,6 +81,7 @@ async function handleBadWords(msg) {
 
   if (!data.active || !isAllowedGroup(msg.chat)) return;
 
+  // Admin check - if user is an admin, ignore bad word checks
   const isAdmin = await isAdminUser(chatId, userId);
   if (isAdmin) return; // Admins are immune
 
@@ -155,6 +155,13 @@ async function handleAdminActions(msg) {
 
   const isAdmin = await isAdminUser(chatId, userId);
   if (!isAdmin) return;
+
+  // Check if target is admin
+  const isTargetAdmin = targetId && await isAdminUser(chatId, targetId);
+
+  if (isTargetAdmin) {
+    return bot.sendMessage(chatId, "❌ نمی‌توانید به ادمین‌ها اعمالی مانند اخطار، سکوت، یا کیک اعمال کنید.");
+  }
 
   switch (text) {
     case "اخطار":
@@ -234,7 +241,8 @@ async function handleKick(chatId, targetId, msg) {
 async function handleMute(chatId, targetId, msg) {
   if (!targetId) return bot.sendMessage(chatId, "❌ لطفا به یک پیام پاسخ دهید.");
 
-  if (mutedUsers[targetId]) {
+  const isMuted = warnings[targetId]?.mutedDueToWarnings;
+  if (isMuted) {
     return bot.sendMessage(chatId, `❌ ${msg.reply_to_message.from.first_name} قبلاً بی‌صدا شده است!`);
   }
 
@@ -246,7 +254,6 @@ async function handleMute(chatId, targetId, msg) {
       can_send_other_messages: false,
       can_add_web_page_previews: false
     });
-    mutedUsers[targetId] = true; // Mark as muted
     bot.sendMessage(chatId, `🔇 ${msg.reply_to_message.from.first_name} بی‌صدا شد!`);
   } catch (error) {
     console.error("Error muting user:", error);
@@ -266,7 +273,6 @@ async function handleUnmute(chatId, targetId, msg) {
       can_send_other_messages: true,
       can_add_web_page_previews: true
     });
-    mutedUsers[targetId] = false; // Unmark as muted
     bot.sendMessage(chatId, `📣 ${msg.reply_to_message.from.first_name} دوباره قادر به صحبت کردن شد! 🎉`);
   } catch (error) {
     console.error("Error unmuting user:", error);
@@ -359,6 +365,10 @@ bot.on("message", async (msg) => {
       let reportSent = false;
 
       for (const admin of admins) {
+        // Admins are immune to receiving reports
+        if (await isAdminUser(chatId, admin.user.id)) {
+          continue;
+        }
         try {
           await bot.sendMessage(admin.user.id, reportMessage);
           reportSent = true;
@@ -368,27 +378,13 @@ bot.on("message", async (msg) => {
       }
 
       if (reportSent) {
-        bot.sendMessage(chatId, `✅ گزارش شما با موفقیت ارسال شد.`);
+        bot.sendMessage(chatId, "✅ گزارش با موفقیت به ادمین‌ها ارسال شد.");
       } else {
-        bot.sendMessage(chatId, `❌ گزارش شما ارسال نشد. مطمئن شوید که ادمین‌ها با ربات چت کرده‌اند.`);
+        bot.sendMessage(chatId, "❌ هیچ ادمینی برای ارسال گزارش پیدا نشد.");
       }
     } catch (error) {
-      console.error("Error sending report:", error);
+      console.error("Error handling report:", error);
       bot.sendMessage(chatId, "❌ مشکلی در ارسال گزارش پیش آمد.");
     }
   }
 });
-
-// Main message handler
-bot.on("message", async (msg) => {
-  handleActivation(msg);
-  handleBadWords(msg);
-
-  // Allow admins and owners to use commands
-  if (await isAdminUser(msg.chat.id, msg.from.id)) {
-    handleAdminActions(msg);
-  }
-});
-
-// Load warnings on startup
-loadWarnings();
