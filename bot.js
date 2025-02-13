@@ -14,7 +14,7 @@ const DATA_FILE = "data.json";
 // Initialize data structure if `data.json` doesn't exist
 let data = {
   active: false,
-  warnings: {},
+  users: {}, // Store user-specific data (warnings, muted status)
   admins: {}
 };
 
@@ -24,7 +24,7 @@ if (fs.existsSync(DATA_FILE)) {
     data = JSON.parse(fs.readFileSync(DATA_FILE, "utf8"));
   } catch (error) {
     console.error("Error reading data.json:", error);
-    data = { active: false, warnings: {}, admins: {} }; // Reset data on parse failure
+    data = { active: false, users: {}, admins: {} }; // Reset data on parse failure
   }
 } else {
   saveData();
@@ -67,7 +67,7 @@ async function handleActivation(msg) {
     }
     data.active = true;
     saveData();
-    return bot.sendMessage(chatId, "✅ ربات با موفقیت فعال شد!\nپیشنهاد و انتقادات @zonercm\nورژن کاستوم + 1.0");
+    return bot.sendMessage(chatId, "✅ ربات با موفقیت فعال شد!");
   }
 }
 
@@ -85,27 +85,25 @@ async function handleBadWords(msg) {
   if (badWords.some(word => text.includes(word))) {
     bot.deleteMessage(chatId, msg.message_id);
 
-    if (!data.warnings[userId] || data.warnings[userId] < 3) {
-      // Only add warnings if the user has less than 3 warnings
-      if (!data.warnings[userId]) {
-        data.warnings[userId] = 1;
-      } else {
-        data.warnings[userId]++;
-      }
+    if (!data.users[userId]) {
+      data.users[userId] = { warnings: 0, mutedDueToWarnings: false };
+    }
 
+    if (data.users[userId].warnings < 3) {
+      data.users[userId].warnings++;
       saveData();
 
       bot.sendMessage(
         chatId,
-        `⚠️ ${msg.from.first_name}، پیام شما حذف شد! \n📌 اخطار ${data.warnings[userId]}/3`
+        `⚠️ ${msg.from.first_name}، پیام شما حذف شد! \n📌 اخطار ${data.users[userId].warnings}/3`
       );
 
-      if (data.warnings[userId] >= 3) {
+      if (data.users[userId].warnings >= 3) {
+        data.users[userId].mutedDueToWarnings = true;
         await bot.restrictChatMember(chatId, userId, { can_send_messages: false });
         bot.sendMessage(chatId, `🔇 ${msg.from.first_name} به دلیل 3 اخطار، بی‌صدا شد!`);
       }
     } else {
-      // Notify that the user already has 3 warnings
       bot.sendMessage(
         chatId,
         `❌ ${msg.from.first_name} قبلاً 3 اخطار دریافت کرده و بی‌صدا شده است!`
@@ -167,27 +165,25 @@ async function handleAdminActions(msg) {
 function handleWarning(chatId, targetId, msg) {
   if (!targetId) return bot.sendMessage(chatId, "❌ لطفا به یک پیام پاسخ دهید.");
 
-  if (!data.warnings[targetId] || data.warnings[targetId] < 3) {
-    // Only add warnings if the user has less than 3 warnings
-    if (!data.warnings[targetId]) {
-      data.warnings[targetId] = 1;
-    } else {
-      data.warnings[targetId]++;
-    }
+  if (!data.users[targetId]) {
+    data.users[targetId] = { warnings: 0, mutedDueToWarnings: false };
+  }
 
+  if (data.users[targetId].warnings < 3) {
+    data.users[targetId].warnings++;
     saveData();
 
     bot.sendMessage(
       chatId,
-      `⚠️ ${msg.reply_to_message.from.first_name} توسط ${msg.from.first_name} اخطار گرفت! \n📌 اخطار ${data.warnings[targetId]}/3`
+      `⚠️ ${msg.reply_to_message.from.first_name} توسط ${msg.from.first_name} اخطار گرفت! \n📌 اخطار ${data.users[targetId].warnings}/3`
     );
 
-    if (data.warnings[targetId] >= 3) {
+    if (data.users[targetId].warnings >= 3) {
+      data.users[targetId].mutedDueToWarnings = true;
       bot.restrictChatMember(chatId, targetId, { can_send_messages: false });
       bot.sendMessage(chatId, `🔇 ${msg.reply_to_message.from.first_name} به دلیل 3 اخطار، بی‌صدا شد!`);
     }
   } else {
-    // Notify that the user already has 3 warnings
     bot.sendMessage(
       chatId,
       `❌ ${msg.reply_to_message.from.first_name} قبلاً 3 اخطار دریافت کرده و بی‌صدا شده است!`
@@ -250,51 +246,42 @@ async function handleUnmute(chatId, targetId, msg) {
 function handleRemoveWarning(chatId, targetId, msg) {
   if (!targetId) return bot.sendMessage(chatId, "❌ لطفا به یک پیام پاسخ دهید.");
 
-  if (!data.warnings[targetId]) {
+  if (!data.users[targetId]) {
     return bot.sendMessage(chatId, `❌ ${msg.reply_to_message.from.first_name} هیچ اخطاری ندارد!`);
   }
 
-  data.warnings[targetId]--;
-  if (data.warnings[targetId] <= 0) {
-    delete data.warnings[targetId];
+  if (data.users[targetId].warnings > 0) {
+    data.users[targetId].warnings--;
 
-    // Automatically unmute if the user was muted due to 3 warnings
-    if (bot.restrictChatMember(chatId, targetId, {
-      can_send_messages: true,
-      can_send_media_messages: true,
-      can_send_polls: true,
-      can_send_other_messages: true,
-      can_add_web_page_previews: true
-    })) {
-      bot.sendMessage(
-        chatId,
-        `🎉 ${msg.reply_to_message.from.first_name} از سکوت خارج شد و مجدد قادر به صحبت کردن است!`
-      );
+    if (data.users[targetId].warnings === 0 && data.users[targetId].mutedDueToWarnings) {
+      // Unmute the user if they were muted due to warnings and now have 0 warnings
+      data.users[targetId].mutedDueToWarnings = false;
+
+      bot.restrictChatMember(chatId, targetId, {
+        can_send_messages: true,
+        can_send_media_messages: true,
+        can_send_polls: true,
+        can_send_other_messages: true,
+        can_add_web_page_previews: true
+      }).then(() => {
+        bot.sendMessage(
+          chatId,
+          `🎉 ${msg.reply_to_message.from.first_name} از سکوت خارج شد و مجدد قادر به صحبت کردن است!`
+        );
+      }).catch((error) => {
+        console.error("Error auto-unmuting user:", error);
+      });
     }
-  } else if (data.warnings[targetId] === 2) {
-    // If the user had exactly 3 warnings before removal, notify and unmute
-    bot.restrictChatMember(chatId, targetId, {
-      can_send_messages: true,
-      can_send_media_messages: true,
-      can_send_polls: true,
-      can_send_other_messages: true,
-      can_add_web_page_previews: true
-    }).then(() => {
-      bot.sendMessage(
-        chatId,
-        `🎉 ${msg.reply_to_message.from.first_name} از سکوت خارج شد و مجدد قادر به صحبت کردن است!`
-      );
-    }).catch((error) => {
-      console.error("Error auto-unmuting user:", error);
-    });
+
+    saveData();
+
+    bot.sendMessage(
+      chatId,
+      `✅ اخطار ${msg.reply_to_message.from.first_name} حذف شد! \n📌 اخطار باقی‌مانده: ${data.users[targetId].warnings || 0}`
+    );
+  } else {
+    bot.sendMessage(chatId, `❌ ${msg.reply_to_message.from.first_name} هیچ اخطاری ندارد!`);
   }
-
-  saveData();
-
-  bot.sendMessage(
-    chatId,
-    `✅ اخطار ${msg.reply_to_message.from.first_name} حذف شد! \n📌 اخطار باقی‌مانده: ${data.warnings[targetId] || 0}`
-  );
 }
 
 // Handle command list
