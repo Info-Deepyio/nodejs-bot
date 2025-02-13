@@ -234,6 +234,11 @@ async function handleKick(chatId, targetId, msg) {
 async function handleMute(chatId, targetId, msg) {
     if (!targetId) return bot.sendMessage(chatId, "❌ لطفا به یک پیام پاسخ دهید.");
 
+    const isMuted = (await bot.getChatMember(chatId, targetId)).can_send_messages === false;
+    if (isMuted) {
+        return bot.sendMessage(chatId, `❌ ${msg.reply_to_message.from.first_name} قبلاً بی‌صدا شده است.`);
+    }
+
     try {
         await bot.restrictChatMember(chatId, targetId, {
             can_send_messages: false,
@@ -253,6 +258,11 @@ async function handleMute(chatId, targetId, msg) {
 async function handleUnmute(chatId, targetId, msg) {
     if (!targetId) return bot.sendMessage(chatId, "❌ لطفا به یک پیام پاسخ دهید.");
 
+    const isUnmuted = (await bot.getChatMember(chatId, targetId)).can_send_messages === true;
+    if (isUnmuted) {
+        return bot.sendMessage(chatId, `❌ ${msg.reply_to_message.from.first_name} قبلاً قادر به صحبت است.`);
+    }
+
     try {
         await bot.restrictChatMember(chatId, targetId, {
             can_send_messages: true,
@@ -261,7 +271,7 @@ async function handleUnmute(chatId, targetId, msg) {
             can_send_other_messages: true,
             can_add_web_page_previews: true
         });
-        bot.sendMessage(chatId, `📣 ${msg.reply_to_message.from.first_name} دوباره قادر به صحبت کردن شد! 🎉`);
+        bot.sendMessage(chatId, `📣 ${msg.reply_to_message.from.first_name} دوباره قادر به صحبت کردن شد!`);
     } catch (error) {
         console.error("Error unmuting user:", error);
         bot.sendMessage(chatId, "❌ مشکلی در بازگرداندن صدای کاربر پیش آمد.");
