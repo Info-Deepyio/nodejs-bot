@@ -327,68 +327,19 @@ function handleCommandList(chatId) {
         chatId,
         `
 📜 لیست دستورات ربات:
-
-1️⃣ روشن - فعال‌سازی ربات توسط صاحب گروه.
-2️⃣ اخطار - اخطار دادن به کاربر.
-3️⃣ کیک/صیک - اخراج کاربر از گروه.
-4️⃣ سکوت - بی‌صدا کردن کاربر.
-5️⃣ سخنگو - بازگرداندن صدای کاربر.
-6️⃣ حذف اخطار - حذف یک اخطار از کاربر.
-7️⃣ گزارش - گزارش دادن پیام به ادمین‌ها و صاحب گروه.
+1. روشن: فعال‌سازی ربات
+2. اخطار: افزودن اخطار به کاربر
+3. کیک: اخراج کاربر از گروه
+4. سکوت: بی‌صدا کردن کاربر
+5. سخنگو: بازگرداندن صدای کاربر
+6. حذف اخطار: حذف اخطار از کاربر
 `
     );
 }
 
-// User report system
+// Listen for incoming messages
 bot.on("message", async (msg) => {
-    if (!msg.reply_to_message || !data.active || !isAllowedGroup(msg.chat)) return;
-
-    const chatId = msg.chat.id;
-    const userId = msg.from.id;
-    const text = msg.text;
-
-    if (text === "گزارش") {
-        try {
-            const admins = await bot.getChatAdministrators(chatId);
-            const reportedUser = msg.reply_to_message.from.first_name;
-            const reportText = msg.reply_to_message.text || "بدون متن";
-            const reportedBy = msg.from.first_name;
-
-            const reportMessage = `🚨 گزارش جدید     📌 گزارش دهنده: ${reportedBy}     📝 گزارش شده: ${reportedUser}     📄 متن گزارش: ${reportText}    `;
-
-            let reportSent = false;
-
-            for (const admin of admins) {
-                try {
-                    await bot.sendMessage(admin.user.id, reportMessage);
-                    reportSent = true;
-                } catch (error) {
-                    console.error(`Failed to send report to admin ${admin.user.id}:`, error);
-                }
-            }
-
-            if (reportSent) {
-                bot.sendMessage(chatId, `✅ گزارش شما با موفقیت ارسال شد.`);
-            } else {
-                bot.sendMessage(chatId, `❌ گزارش شما ارسال نشد. مطمئن شوید که ادمین‌ها با ربات چت کرده‌اند.`);
-            }
-        } catch (error) {
-            console.error("Error sending report:", error);
-            bot.sendMessage(chatId, "❌ مشکلی در ارسال گزارش پیش آمد.");
-        }
-    }
+    await handleActivation(msg);
+    await handleBadWords(msg);
+    await handleAdminActions(msg);
 });
-
-// Main message handler
-bot.on("message", async (msg) => {
-    handleActivation(msg);
-    handleBadWords(msg);
-
-    // Allow admins and owners to use commands
-    if (await isAdminUser(msg.chat.id, msg.from.id)) {
-        handleAdminActions(msg);
-    }
-});
-
-// Load warnings on startup
-loadWarnings();
