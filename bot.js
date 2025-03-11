@@ -1,6 +1,6 @@
 const fs = require("fs");
 const axios = require("axios");
-
+// bruh
 // Bot Token (Replace with your actual bot token)
 const TOKEN = "1691953570:WmL4sHlh1ZFMcGv8ekKGgUdGxlZfforRzuktnweg";
 const API_URL = `https://tapi.bale.ai/bot${TOKEN}`;
