@@ -6,7 +6,7 @@ const TOKEN = "1691953570:WmL4sHlh1ZFMcGv8ekKGgUdGxlZfforRzuktnweg";
 const API_URL = `https://tapi.bale.ai/bot${TOKEN}`;
 
 // Group handle (without @ for consistency)
-const ALLOWED_GROUP = "MC_hat";
+const ALLOWED_GROUP = "chatblox";
 
 // Data files
 const DATA_FILE = "data.json";
