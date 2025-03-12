@@ -5,8 +5,8 @@ const axios = require("axios");
 const TOKEN = "1691953570:WmL4sHlh1ZFMcGv8ekKGgUdGxlZfforRzuktnweg";
 const API_URL = `https://tapi.bale.ai/bot${TOKEN}`;
 
-// Group handle
-const ALLOWED_GROUP = "fortblox";
+// Group ID (Replace with your actual group ID)
+const ALLOWED_GROUP_ID = 5757426260; // Example: Replace with your group ID
 
 // Load data from JSON file
 const DATA_FILE = "data.json";
@@ -48,14 +48,8 @@ const badWords = [
 ];
 
 // Function to check if the bot is in the allowed group
-async function isAllowedGroup(chatId) {
-  try {
-    const chatInfo = await axios.get(`${API_URL}/getChat?chat_id=${chatId}`);
-    return chatInfo.data.result.username === ALLOWED_GROUP.replace("@", "");
-  } catch (error) {
-    console.error("Error checking group:", error);
-    return false;
-  }
+function isAllowedGroup(chatId) {
+  return chatId === ALLOWED_GROUP_ID;
 }
 
 // Send message to chat
@@ -78,7 +72,7 @@ async function handleActivation(msg) {
   const userId = msg.from.id;
   const text = msg.text;
 
-  if (!(await isAllowedGroup(chatId))) return;
+  if (!isAllowedGroup(chatId)) return;
 
   try {
     const chatMember = await axios.get(`${API_URL}/getChatMember?chat_id=${chatId}&user_id=${userId}`);
@@ -105,7 +99,7 @@ async function handleBadWords(msg) {
   const userId = msg.from.id;
   const text = msg.text;
 
-  if (!text || !data.active || !(await isAllowedGroup(chatId))) return;
+  if (!text || !data.active || !isAllowedGroup(chatId)) return;
 
   try {
     const isAdmin = await isAdminUser(chatId, userId);
@@ -194,7 +188,7 @@ async function handleAdminActions(msg) {
   const targetId = msg.reply_to_message?.from?.id;
   const text = msg.text;
 
-  if (!data.active || !(await isAllowedGroup(chatId))) return;
+  if (!data.active || !isAllowedGroup(chatId)) return;
 
   try {
     const isAdmin = await isAdminUser(chatId, userId);
