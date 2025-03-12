@@ -5,7 +5,7 @@ const TOKEN = "1691953570:WmL4sHlh1ZFMcGv8ekKGgUdGxlZfforRzuktnweg";
 const API_URL = `https://tapi.bale.ai/bot${TOKEN}`;
 
 // Group ID (Replace with your actual group ID)
-const ALLOWED_GROUP_ID = YOUR_GROUP_ID; // Replace with your group ID
+const ALLOWED_GROUP_ID = 6190641192; // Replace with your group ID
 
 // Send message to chat
 async function sendMessage(chatId, text) {
