@@ -2,6 +2,8 @@ const axios = require("axios");
 
 const TOKEN = "1691953570:WmL4sHlh1ZFMcGv8ekKGgUdGxlZfforRzuktnweg";
 const BALE_API = `https://tapi.bale.ai/bot${TOKEN}`;
+const GROUP_ID = 6190641192;
+const OWNER_USERNAME = "dszone"; // Replace with the actual owner's username
 
 // Function to send a message
 async function sendMessage(chatId, text) {
@@ -22,10 +24,9 @@ async function handleUpdate(update) {
         const chatId = message.chat.id;
         const username = message.from.username;
 
-        // Check if the user is 'dszone' and if the message starts with 'بگو'
-        if (username === "dszone" && message.text.startsWith("بگو ")) {
-            const responseText = message.text.slice(4); // Remove 'بگو ' from the message
-            await sendMessage(chatId, responseText);
+        // Respond "hello" when the owner says "hi" in the specific group
+        if (chatId === GROUP_ID && username === OWNER_USERNAME && message.text.toLowerCase() === "hi") {
+            await sendMessage(chatId, "hello");
         }
     }
 }
