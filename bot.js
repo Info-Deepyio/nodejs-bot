@@ -6,7 +6,7 @@ const TOKEN = "1691953570:WmL4sHlh1ZFMcGv8ekKGgUdGxlZfforRzuktnweg";
 const API_URL = `https://tapi.bale.ai/bot${TOKEN}`;
 
 // Group handle
-const ALLOWED_GROUP = "@fortblox";
+const ALLOWED_GROUP = "fortblox";
 
 // Load data from JSON file
 const DATA_FILE = "data.json";
