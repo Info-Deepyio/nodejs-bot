@@ -6,7 +6,7 @@ const TOKEN = "1691953570:WmL4sHlh1ZFMcGv8ekKGgUdGxlZfforRzuktnweg";
 const API_URL = `https://tapi.bale.ai/bot${TOKEN}`;
 
 // Group handle
-const ALLOWED_GROUP = "@fortblox";
+const ALLOWED_GROUP = "@MC_hat";
 
 // Load data from JSON file
 const DATA_FILE = "data.json";
@@ -78,7 +78,7 @@ async function handleActivation(msg) {
   const userId = msg.from.id;
   const text = msg.text;
 
-  if (!await isAllowedGroup(chatId)) return;
+  if (!(await isAllowedGroup(chatId))) return;
 
   try {
     const chatMember = await axios.get(`${API_URL}/getChatMember?chat_id=${chatId}&user_id=${userId}`);
@@ -105,7 +105,7 @@ async function handleBadWords(msg) {
   const userId = msg.from.id;
   const text = msg.text;
 
-  if (!text || !data.active || !await isAllowedGroup(chatId)) return;
+  if (!text || !data.active || !(await isAllowedGroup(chatId))) return;
 
   try {
     const isAdmin = await isAdminUser(chatId, userId);
@@ -194,7 +194,7 @@ async function handleAdminActions(msg) {
   const targetId = msg.reply_to_message?.from?.id;
   const text = msg.text;
 
-  if (!data.active || !await isAllowedGroup(chatId)) return;
+  if (!data.active || !(await isAllowedGroup(chatId))) return;
 
   try {
     const isAdmin = await isAdminUser(chatId, userId);
