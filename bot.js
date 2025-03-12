@@ -1,23 +1,24 @@
 const axios = require("axios");
 
-// Bot Token (Replace with your actual bot token)
+// Bot Token and API URL
 const TOKEN = "1691953570:WmL4sHlh1ZFMcGv8ekKGgUdGxlZfforRzuktnweg";
 const API_URL = `https://tapi.bale.ai/bot${TOKEN}`;
 
-// Group ID (Replace with your actual group ID)
-const ALLOWED_GROUP_ID = 6190641192; // Replace with your group ID
+// Group ID
+const ALLOWED_GROUP_ID = 6190641192;
+
+// Track the last update ID
+let lastUpdateId = 0;
 
 // Send message to chat
 async function sendMessage(chatId, text) {
   try {
-    const response = await axios.post(`${API_URL}/sendMessage`, {
+    await axios.post(`${API_URL}/sendMessage`, {
       chat_id: chatId,
       text: text,
     });
-    return response.data;
   } catch (error) {
     console.error("Error sending message:", error.message);
-    return null;
   }
 }
 
@@ -38,14 +39,13 @@ async function handleHiMessage(msg) {
   }
 }
 
-// Get updates from Telegram API
-let offset = 0;
+// Get updates from Bale API
 async function getUpdates() {
   try {
     const response = await axios.get(`${API_URL}/getUpdates`, {
       params: {
-        offset: offset,
-        timeout: 30,
+        offset: lastUpdateId + 1, // Start from the next update
+        timeout: 10, // Shorter timeout for faster polling
       },
     });
 
@@ -53,13 +53,12 @@ async function getUpdates() {
       const updates = response.data.result;
 
       if (updates.length > 0) {
-        // Process all updates
         for (const update of updates) {
           if (update.message) {
             await handleHiMessage(update.message); // Handle "hi" messages
           }
-          // Update the offset to acknowledge received updates
-          offset = update.update_id + 1;
+          // Update the last processed update ID
+          lastUpdateId = update.update_id;
         }
       }
     }
@@ -68,13 +67,13 @@ async function getUpdates() {
   }
 }
 
-// Polling function
+// Polling function with faster interval
 function startPolling() {
   // Get updates immediately
   getUpdates();
 
-  // Then set interval for continuous polling
-  setInterval(getUpdates, 1000);
+  // Set a faster polling interval (e.g., 500ms)
+  setInterval(getUpdates, 500);
 
   console.log("Polling started...");
 }
