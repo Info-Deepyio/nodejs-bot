@@ -1,13 +1,13 @@
 const axios = require("axios");
 
-// Bot Token (Replace with your actual bot token)
+// Bot Token & API URL
 const TOKEN = "1691953570:WmL4sHlh1ZFMcGv8ekKGgUdGxlZfforRzuktnweg";
 const API_URL = `https://tapi.bale.ai/bot${TOKEN}`;
 
-// Group ID (Replace with your actual group ID)
+// Allowed Group ID
 const ALLOWED_GROUP_ID = 6190641192;
 
-// Send message to chat
+// Send a message function
 async function sendMessage(chatId, text) {
   try {
     await axios.post(`${API_URL}/sendMessage`, {
@@ -19,7 +19,7 @@ async function sendMessage(chatId, text) {
   }
 }
 
-// Process incoming messages
+// Process messages
 async function handleMessage(message) {
   if (!message || !message.chat || !message.text) return;
 
@@ -31,27 +31,29 @@ async function handleMessage(message) {
   }
 }
 
-// Polling mechanism
-let offset = 0;
-async function getUpdates() {
-  try {
-    const response = await axios.get(`${API_URL}/getUpdates`, {
-      params: { offset: offset, timeout: 30 },
-    });
+// Continuous polling function
+async function startPolling() {
+  let offset = 0;
 
-    if (response.data && response.data.result.length > 0) {
-      for (const update of response.data.result) {
-        if (update.message) await handleMessage(update.message);
-        offset = update.update_id + 1; // Update offset after processing
+  console.log("Bot is running...");
+
+  while (true) {
+    try {
+      const response = await axios.get(`${API_URL}/getUpdates`, {
+        params: { offset: offset, timeout: 30 },
+      });
+
+      if (response.data?.result?.length > 0) {
+        for (const update of response.data.result) {
+          if (update.message) await handleMessage(update.message);
+          offset = update.update_id + 1; // Set offset to avoid duplicates
+        }
       }
+    } catch (error) {
+      console.error("Error getting updates:", error.message);
     }
-  } catch (error) {
-    console.error("Error getting updates:", error.message);
-  } finally {
-    getUpdates(); // Recursively call for instant updates
   }
 }
 
-// Start bot
-console.log("Bot is running...");
-getUpdates();
+// Start the bot
+startPolling();
