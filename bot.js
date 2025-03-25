@@ -2,7 +2,7 @@ const axios = require('axios');
 
 // Configuration
 const BOT_TOKEN = '1160037511:1K8GGcq7N14gngAo6e9apfT2yVYPCSI9xmRsHVCe';
-const GROUP_ID = '5272323810'; // The group ID you want to check
+const GROUP_ID = 5272323810; // The group ID you want to check
 const API_URL = `https://tapi.bale.ai/bot${BOT_TOKEN}`;
 let lastUpdateId = 0; // To keep track of processed updates
 
