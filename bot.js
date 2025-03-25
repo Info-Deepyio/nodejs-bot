@@ -6,7 +6,7 @@ const { MongoClient } = require('mongodb');
 const BOT_TOKEN = '1160037511:EQNWiWm1RMmMbCydsXiwOsEdyPbmomAuwu4tX6Xb';
 const MONGODB_URI = 'mongodb://mongo:nbEmnyowiInvldFDLwbTSLvskSWWNUTT@nozomi.proxy.rlwy.net:57792';
 const GROUP_ID = 5272323810;
-const API_URL = `https://tapi.bale.ai/bot${BOT_TOKEN}`;
+const API_URL = `https://tapi.bale.ai/bot${BOT_TOKEN}/`;
 
 // MongoDB connection
 const client = new MongoClient(MONGODB_URI, { 
