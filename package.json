@@ -1,14 +1,13 @@
 {
   "name": "telegram-bot",
   "version": "1.0.0",
-  "description": "A Telegram bot using Axios, Moment-Jalaali, and Redis with long polling.",
   "main": "bot.js",
   "scripts": {
     "start": "node bot.js"
   },
   "dependencies": {
-    "axios": "^1.7.9",
-    "moment-jalaali": "^0.10.4",
-    "redis": "^4.7.0"
+    "axios": "1.6.2",
+    "moment-jalaali": "0.9.2",
+    "mongodb": "5.7.0"
   }
 }
