@@ -18,12 +18,14 @@ async function handleStartCommand(chatId, userId) {
     });
     
     const status = response.data.result.status;
-    const isMember = status === 'member' || status === 'administrator' || status === 'creator';
+    const isMember = ['member', 'administrator', 'creator'].includes(status);
     
     // Send appropriate message
     await axios.post(`${API_URL}/sendMessage`, {
       chat_id: chatId,
-      text: isMember ? "You're in the group! ✅" : "You're not in the group. ❌"
+      text: isMember 
+        ? "You're a member of the group! ✅" 
+        : "You're not in the group or have left. ❌"
     });
     
   } catch (error) {
@@ -32,7 +34,10 @@ async function handleStartCommand(chatId, userId) {
     // Send error message if user is not in group or bot can't check
     await axios.post(`${API_URL}/sendMessage`, {
       chat_id: chatId,
-      text: "I couldn't verify your group status. Make sure I'm added to the group and have the right permissions."
+      text: "I couldn't verify your group status. Please ensure:\n" +
+            "1. The bot is added to the group\n" +
+            "2. The bot has necessary permissions\n" +
+            "3. You're in the correct group"
     });
   }
 }
@@ -55,7 +60,7 @@ async function processUpdates(updates) {
   }
 }
 
-// Long polling function
+// Long polling function with improved error handling
 async function longPoll() {
   try {
     const response = await axios.get(`${API_URL}/getUpdates`, {
@@ -65,11 +70,25 @@ async function longPoll() {
       }
     });
     
-    if (response.data.result.length > 0) {
+    if (response.data.result && response.data.result.length > 0) {
       await processUpdates(response.data.result);
     }
   } catch (error) {
     console.error('Error in long polling:', error.message);
+    
+    // More robust error handling
+    if (error.response) {
+      // The request was made and the server responded with a status code
+      console.error('Error details:', error.response.data);
+      console.error('Error status:', error.response.status);
+    } else if (error.request) {
+      // The request was made but no response was received
+      console.error('No response received');
+    } else {
+      // Something happened in setting up the request
+      console.error('Error setting up request', error.message);
+    }
+    
     // Wait before retrying in case of error
     await new Promise(resolve => setTimeout(resolve, 5000));
   }
@@ -80,4 +99,13 @@ async function longPoll() {
 
 // Start the bot
 console.log('Bot is running...');
-longPoll().catch(err => console.error('Bot failed to start:', err));
+longPoll().catch(err => {
+  console.error('Bot failed to start:', err);
+  process.exit(1); // Exit with error code if bot fails to start
+});
+
+// Graceful shutdown
+process.on('SIGINT', () => {
+  console.log('Stopping bot...');
+  process.exit(0);
+});
