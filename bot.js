@@ -1,184 +1,212 @@
 const axios = require('axios');
 const moment = require('moment-jalaali');
-const redis = require('redis');
+const { MongoClient } = require('mongodb');
 
-moment.loadPersian({ usePersianDigits: true });
-
+// Configuration - replace these with your actual values
 const BOT_TOKEN = '1160037511:EQNWiWm1RMmMbCydsXiwOsEdyPbmomAuwu4tX6Xb';
+const MONGODB_URI = 'mongodb://mongo:nbEmnyowiInvldFDLwbTSLvskSWWNUTT@nozomi.proxy.rlwy.net:57792';
 const API_URL = `https://tapi.bale.ai/bot${BOT_TOKEN}`;
-const WHITELISTED_USERS = [844843541]; // Replace with actual user IDs
-const GROUP_ID = 5272323810; // Replace with your group ID
 
-const redisClient = redis.createClient();
-redisClient.connect();
+// MongoDB connection
+const client = new MongoClient(MONGODB_URI);
+let db;
 
-let autoMessageEnabled = false;
-let autoMessageText = '🔔 پیام خودکار برای کاربران غیرگروهی!';
+// Whitelisted user IDs
+const whitelistedUsers = new Set([
+    // Add your whitelisted user IDs here
+    123456789,
+    987654321
+]);
 
-// Persian date function
-function getPersianDate() {
-  return moment().format('jYYYY/jMM/jDD HH:mm');
+// Connect to MongoDB
+async function connectDB() {
+    try {
+        await client.connect();
+        db = client.db();
+        console.log('Connected to MongoDB');
+    } catch (err) {
+        console.error('MongoDB connection error:', err);
+    }
 }
 
-// Custom UID generator
-function generateUID() {
-  return Math.random().toString(36).substr(2, 10);
+// Initialize the bot
+async function initBot() {
+    let offset = 0;
+    
+    while (true) {
+        try {
+            const response = await axios.get(`${API_URL}/getUpdates`, {
+                params: { offset, timeout: 30 }
+            });
+            
+            if (response.data.ok && response.data.result.length > 0) {
+                for (const update of response.data.result) {
+                    offset = update.update_id + 1;
+                    handleUpdate(update);
+                }
+            }
+        } catch (error) {
+            console.error('Error fetching updates:', error);
+            await new Promise(resolve => setTimeout(resolve, 5000));
+        }
+    }
 }
 
-// Send a message via Telegram API
+// Handle incoming updates
+async function handleUpdate(update) {
+    if (!update.message) return;
+    
+    const { message } = update;
+    const userId = message.from.id;
+    const chatId = message.chat.id;
+    const text = message.text || '';
+    
+    // Check if user is whitelisted
+    if (!whitelistedUsers.has(userId)) {
+        await sendMessage(chatId, '⛔ شما مجوز استفاده از این ربات را ندارید.');
+        return;
+    }
+    
+    // Greet new users
+    if (message.new_chat_members) {
+        for (const user of message.new_chat_members) {
+            await greetUser(chatId, user);
+        }
+        return;
+    }
+    
+    // Handle commands
+    if (text.startsWith('/start')) {
+        const startCode = text.split(' ')[1];
+        if (startCode) {
+            await handleStartCode(chatId, startCode);
+        } else {
+            await sendWelcomeMessage(chatId, message.from);
+        }
+    } else if (text === 'پنل') {
+        await showPanel(chatId);
+    }
+}
+
+// Send message helper
 async function sendMessage(chatId, text, replyMarkup = null) {
-  await axios.post(`${API_URL}/sendMessage`, {
-    chat_id: chatId,
-    text,
-    parse_mode: 'Markdown',
-    reply_markup: replyMarkup
-  }).catch(console.error);
+    try {
+        await axios.post(`${API_URL}/sendMessage`, {
+            chat_id: chatId,
+            text,
+            reply_markup: replyMarkup,
+            parse_mode: 'HTML'
+        });
+    } catch (error) {
+        console.error('Error sending message:', error);
+    }
 }
 
-// Long polling for updates
-async function getUpdates(offset = 0) {
-  try {
-    const res = await axios.post(`${API_URL}/getUpdates`, { offset, timeout: 30 });
-    const updates = res.data.result;
-    
-    for (let update of updates) {
-      if (update.message) handleMessage(update.message);
-      if (update.callback_query) handleCallback(update.callback_query);
-      offset = update.update_id + 1;
-    }
-    
-    getUpdates(offset);
-  } catch (error) {
-    console.error(error);
-    setTimeout(() => getUpdates(offset), 5000);
-  }
+// Greet user
+async function greetUser(chatId, user) {
+    const persianDate = moment().format('jYYYY/jMM/jDD');
+    const greeting = `👋 سلام <b>${user.first_name}</b>! به جمع ما خوش آمدی!\n\n📅 امروز: <b>${persianDate}</b>`;
+    await sendMessage(chatId, greeting);
 }
 
-// Handle messages
-async function handleMessage(msg) {
-  const chatId = msg.chat.id;
-  const userId = msg.from.id.toString();
-  const firstName = msg.from.first_name || 'کاربر';
-  const text = msg.text;
+// Send welcome message
+async function sendWelcomeMessage(chatId, user) {
+    const persianDate = moment().format('jYYYY/jMM/jDD');
+    const welcomeMsg = `👋 سلام <b>${user.first_name}</b>! به ربات خوش آمدید!\n\n📅 تاریخ امروز: <b>${persianDate}</b>\n\nبرای مشاهده پنل مدیریت، کلمه <code>پنل</code> را ارسال کنید.`;
+    await sendMessage(chatId, welcomeMsg);
+}
 
-  if (!await redisClient.exists(`user:${userId}`)) {
-    await redisClient.set(`user:${userId}`, 'true');
-  }
-
-  if (text === '/start') {
-    const response = `👋 سلام ${firstName}!\n📅 تاریخ: ${getPersianDate()}\n\n🔘 برای دسترسی به امکانات ربات، دستور «پنل» را ارسال کنید.`;
-    await sendMessage(chatId, response);
-  } else if (text === 'پنل' && WHITELISTED_USERS.includes(userId)) {
-    await sendMessage(chatId, '⚙️ منو مدیریت:', {
-      inline_keyboard: [
-        [{ text: '📩 پیام‌رسانی', callback_data: 'messaging' }],
-        [{ text: '📂 ارسال فایل', callback_data: 'upload_file' }]
-      ]
-    });
-  } else if (await redisClient.exists(`awaiting_file:${chatId}`)) {
-    if (msg.document) {
-      const fileId = msg.document.file_id;
-      const fileUID = generateUID();
-      const password = await redisClient.get(`awaiting_file:${chatId}`);
-
-      await redisClient.set(fileUID, JSON.stringify({ fileId, password }));
-      await redisClient.del(`awaiting_file:${chatId}`);
-
-      await sendMessage(chatId, `📂 فایل ذخیره شد!\n🔗 لینک دریافت فایل:\n\`\`\`/start ${fileUID}\`\`\``);
-    }
-  }
+// Show admin panel
+async function showPanel(chatId) {
+    const keyboard = {
+        inline_keyboard: [
+            [{ text: '📬 مدیریت پیام‌ها', callback_data: 'messaging_panel' }],
+            [{ text: '📤 آپلود فایل', callback_data: 'upload_panel' }]
+        ]
+    };
+    
+    await sendMessage(chatId, '🔹 <b>پنل مدیریت ربات</b> 🔹\n\nلطفا یکی از گزینه‌ها را انتخاب کنید:', keyboard);
 }
 
 // Handle callback queries
-async function handleCallback(query) {
-  const chatId = query.message.chat.id;
-  const data = query.data;
-
-  if (data === 'messaging') {
-    await sendMessage(chatId, '📩 گزینه‌های پیام‌رسانی:', {
-      inline_keyboard: [
-        [{ text: '📢 ارسال به همه', callback_data: 'send_all' }],
-        [{ text: '👥 ارسال به گروه', callback_data: 'send_group' }],
-        [{ text: '🚫 ارسال به غیرگروه', callback_data: 'send_non_group' }],
-        [{ text: autoMessageEnabled ? '❌ غیرفعال‌سازی پیام خودکار' : '✅ فعال‌سازی پیام خودکار', callback_data: 'toggle_auto' }]
-      ]
-    });
-  } else if (data === 'toggle_auto') {
-    autoMessageEnabled = !autoMessageEnabled;
-    await sendMessage(chatId, autoMessageEnabled ? '✅ پیام خودکار فعال شد.' : '❌ پیام خودکار غیرفعال شد.');
-  } else if (data === 'upload_file') {
-    await sendMessage(chatId, '❓ آیا فایل رمز عبور دارد؟', {
-      inline_keyboard: [
-        [{ text: '🔐 بله', callback_data: 'file_with_pass' }],
-        [{ text: '📁 خیر', callback_data: 'file_no_pass' }]
-      ]
-    });
-  } else if (data === 'file_with_pass') {
-    await redisClient.set(`awaiting_password:${chatId}`, 'true');
-    await sendMessage(chatId, '🔑 لطفاً رمز عبور را ارسال کنید.');
-  } else if (data === 'file_no_pass') {
-    await redisClient.set(`awaiting_file:${chatId}`, '');
-    await sendMessage(chatId, '📎 لطفاً فایل را ارسال کنید.');
-  }
-}
-
-// Sending messages
-async function sendMessagesToUsers(conditionFn, text) {
-  const keys = await redisClient.keys('user:*');
-  for (let key of keys) {
-    const userId = key.split(':')[1];
-    if (conditionFn(userId)) {
-      await sendMessage(userId, `📢 پیام جدید:\n\n${text}`);
+async function handleCallbackQuery(callbackQuery) {
+    const chatId = callbackQuery.message.chat.id;
+    const data = callbackQuery.data;
+    
+    if (data === 'messaging_panel') {
+        await showMessagingPanel(chatId);
+    } else if (data === 'upload_panel') {
+        await showUploadPanel(chatId);
     }
-  }
+    // Add more callback handlers as needed
 }
 
-async function autoMessage() {
-  if (autoMessageEnabled) {
-    await sendMessagesToUsers(userId => userId !== GROUP_ID, autoMessageText);
-  }
+// Show messaging panel
+async function showMessagingPanel(chatId) {
+    const keyboard = {
+        inline_keyboard: [
+            [{ text: '📩 ارسال به همه کاربران', callback_data: 'send_to_all' }],
+            [{ text: '👥 ارسال به اعضای گروه', callback_data: 'send_to_members' }],
+            [{ text: '🚫 ارسال به غیراعضای گروه', callback_data: 'send_to_non_members' }],
+            [{ text: '⏰ ارسال خودکار (هر 2 ساعت)', callback_data: 'toggle_auto_send' }],
+            [{ text: '🔙 بازگشت', callback_data: 'back_to_main' }]
+        ]
+    };
+    
+    await sendMessage(chatId, '📬 <b>پنل مدیریت پیام‌ها</b>\n\nلطفا گزینه مورد نظر را انتخاب کنید:', keyboard);
 }
 
-setInterval(autoMessage, 7200000); // 2 hours
-
-// Handle start links for file retrieval
-async function handleFileRetrieval(chatId, fileUID) {
-  const fileData = await redisClient.get(fileUID);
-  if (!fileData) {
-    return await sendMessage(chatId, '❌ فایل مورد نظر یافت نشد.');
-  }
-
-  const { fileId, password } = JSON.parse(fileData);
-  if (password) {
-    await redisClient.set(`awaiting_password_check:${chatId}`, fileUID);
-    await sendMessage(chatId, '🔐 لطفاً رمز عبور را ارسال کنید.');
-  } else {
-    await axios.post(`${API_URL}/sendDocument`, { chat_id: chatId, document: fileId }).catch(console.error);
-  }
+// Show upload panel
+async function showUploadPanel(chatId) {
+    const keyboard = {
+        inline_keyboard: [
+            [{ text: '🔒 فایل با رمز', callback_data: 'upload_with_pass' }],
+            [{ text: '🔓 فایل بدون رمز', callback_data: 'upload_no_pass' }],
+            [{ text: '🔙 بازگشت', callback_data: 'back_to_main' }]
+        ]
+    };
+    
+    await sendMessage(chatId, '📤 <b>پنل آپلود فایل</b>\n\nلطفا نوع آپلود را انتخاب کنید:', keyboard);
 }
 
-// Check for password input
-bot.on('message', async (msg) => {
-  const chatId = msg.chat.id;
-  const userId = msg.from.id.toString();
-  const text = msg.text;
-
-  if (await redisClient.exists(`awaiting_password:${chatId}`)) {
-    await redisClient.set(`awaiting_file:${chatId}`, text);
-    await redisClient.del(`awaiting_password:${chatId}`);
-    await sendMessage(chatId, '✅ رمز عبور ذخیره شد. حالا فایل را ارسال کنید.');
-  } else if (await redisClient.exists(`awaiting_password_check:${chatId}`)) {
-    const fileUID = await redisClient.get(`awaiting_password_check:${chatId}`);
-    const fileData = JSON.parse(await redisClient.get(fileUID));
-
-    if (text === fileData.password) {
-      await axios.post(`${API_URL}/sendDocument`, { chat_id: chatId, document: fileData.fileId }).catch(console.error);
-      await redisClient.del(`awaiting_password_check:${chatId}`);
+// Handle start code
+async function handleStartCode(chatId, code) {
+    // Implement file retrieval logic here
+    const file = await db.collection('files').findOne({ code });
+    if (file) {
+        if (file.password) {
+            await sendMessage(chatId, '🔒 این فایل با رمز محافظت شده است. لطفا رمز را وارد کنید:');
+            // Implement password check logic
+        } else {
+            // Send the file to user
+            await sendFile(chatId, file);
+        }
     } else {
-      await sendMessage(chatId, '❌ رمز اشتباه است.');
+        await sendMessage(chatId, '⚠️ فایل مورد نظر یافت نشد.');
     }
-  }
-});
+}
 
-// Start polling
-getUpdates();
+// Send file to user
+async function sendFile(chatId, file) {
+    try {
+        // Implement file sending logic based on file type
+        // This is a simplified example
+        await axios.post(`${API_URL}/sendDocument`, {
+            chat_id: chatId,
+            document: file.fileId,
+            caption: file.caption || 'فایل شما آماده دانلود است.'
+        });
+    } catch (error) {
+        console.error('Error sending file:', error);
+        await sendMessage(chatId, '⚠️ خطا در ارسال فایل. لطفا دوباره امتحان کنید.');
+    }
+}
+
+// Main function
+async function main() {
+    await connectDB();
+    await initBot();
+}
+
+// Start the bot
+main().catch(console.error);
